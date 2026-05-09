@@ -1,7 +1,14 @@
 .page-shell {
+  display: flex;
+  flex-direction: column;
   margin: 0 auto;
   max-width: 896px;
+  min-height: 100vh;
   padding: 32px 20px 72px;
+}
+
+.site-main {
+  flex: 1;
 }
 
 .site-header {
@@ -81,9 +88,29 @@
   margin: 36px 0;
 }
 
+.entry-list-header {
+  align-items: baseline;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .entry-list h2 {
   font-size: 22px;
-  margin-bottom: 16px;
+  margin: 0;
+}
+
+.entry-list-more {
+  color: var(--color-accent);
+  flex: none;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.entry-list-more:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .entry-list ol {

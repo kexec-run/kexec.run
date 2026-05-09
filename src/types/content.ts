@@ -35,6 +35,17 @@ export type CollectionDeclaration = {
   limit?: number
 }
 
+export type CollectionLink = {
+  href: string
+  label: string
+}
+
+export type ResolvedCollection = {
+  entries: ContentEntry[]
+  title?: string
+  viewAll?: CollectionLink
+}
+
 export type PageDeclaration = {
   path: string
 }

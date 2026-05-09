@@ -3,11 +3,11 @@ import { resolveCollection } from "@/lib/content"
 import type { CollectionDeclaration } from "@/types/content"
 
 export default function Collection({ path, title, limit }: CollectionDeclaration) {
-  const entries = resolveCollection({ path, title, limit })
+  const collection = resolveCollection({ path, title, limit })
 
-  if (!entries) {
+  if (!collection) {
     return null
   }
 
-  return <CollectionBlock entries={entries} title={title} />
+  return <CollectionBlock {...collection} />
 }

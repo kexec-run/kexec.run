@@ -38,7 +38,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body className={jetbrainsMono.variable}>
         <Container>
           {sections.length > 0 ? <SiteHeader sections={sections} /> : null}
-          {children}
+          <div className="site-main">{children}</div>
           <SiteFooter />
         </Container>
       </body>

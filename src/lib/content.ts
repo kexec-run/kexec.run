@@ -8,6 +8,7 @@ import type {
   ContentMetadata,
   PageDeclaration,
   PageName,
+  ResolvedCollection,
   ResolvedPage,
   ResolvedSection,
   SectionDeclaration
@@ -146,7 +147,11 @@ export function resolvePage(declaration: PageDeclaration): ResolvedPage | null {
   }
 }
 
-export function resolveCollection(declaration: CollectionDeclaration): ContentEntry[] | null {
+function collectionLabel(collection: CollectionName): string {
+  return collection
+}
+
+export function resolveCollection(declaration: CollectionDeclaration): ResolvedCollection | null {
   if (!isCollectionName(declaration.path)) {
     return null
   }
@@ -154,7 +159,18 @@ export function resolveCollection(declaration: CollectionDeclaration): ContentEn
   const entries = getCollectionEntries(declaration.path)
   const limited = typeof declaration.limit === "number" ? entries.slice(0, declaration.limit) : entries
 
-  return limited.length > 0 ? limited : null
+  if (limited.length === 0) {
+    return null
+  }
+
+  return {
+    entries: limited,
+    title: declaration.title,
+    viewAll: {
+      href: `/${declaration.path}`,
+      label: `all ${collectionLabel(declaration.path)}`
+    }
+  }
 }
 
 export function resolveSections(declarations: SectionDeclaration[]): ResolvedSection[] {
