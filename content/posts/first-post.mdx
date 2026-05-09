@@ -1,0 +1,33 @@
+---
+title: "First Post"
+description: "Exploring the architecture of a Next.js site where filesystem structure drives content composition"
+date: "2026-05-08"
+tags: ["mdx", "next.js", "filesystem", "content-driven"]
+published: true
+---
+
+# First Post
+
+This is the beginning of a new content system.
+
+## Architecture
+
+The filesystem serves as the primary organizational structure. Content lives in `/content` directories organized by type:
+
+- `/content/pages` - Static pages like the homepage
+- `/content/posts` - Blog posts with dates and tags
+- `/content/projects` - Project showcases with status metadata
+
+## Key Principles
+
+1. **Git-native workflow** - Content changes through file editing
+2. **Zero CMS** - No database or admin panel needed
+3. **Static-first** - Optimized for Cloudflare Pages deployment
+4. **Sequential reading** - Typography-first design for long-form content
+
+> This is a blockquote demonstrating MDX component support.
+
+```javascript
+// Code blocks render directly inside MDX
+console.log("Hello from MDX")
+```
