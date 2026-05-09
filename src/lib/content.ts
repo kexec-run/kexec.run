@@ -69,7 +69,7 @@ function listMdxFiles(dir: string): string[] {
 
 function normalizeMetadata(data: Record<string, unknown>): ContentMetadata {
   return {
-    title: typeof data.title === "string" ? data.title : "Untitled",
+    title: typeof data.title === "string" ? data.title.toLowerCase() : "untitled",
     description: typeof data.description === "string" ? data.description : undefined,
     date: typeof data.date === "string" ? data.date : undefined,
     tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : undefined,
