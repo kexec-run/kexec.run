@@ -153,6 +153,7 @@ Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsc
 │   │       └── Prose.tsx - prose wrapper
 │   ├── lib/ - content and MDX runtime helpers
 │   │   ├── content.ts
+│   │   ├── fonts.ts
 │   │   └── mdx.ts
 │   ├── styles/ - CSS system
 │   │   ├── code.css
@@ -215,7 +216,7 @@ Plain prose.
 
 <Page path="about" />
 
-<Collection path="posts" title="Latest Posts" limit={2} />
+<Collection path="posts" title="blog" limit={3} />
 
 <Project title="Privledger" stack={["mdx", "next.js"]}>
   A short project description.
@@ -356,6 +357,8 @@ Current theme:
 The typography system switched to Atkinson Hyperlegible and Atkinson Hyperlegible Mono for stronger character differentiation and easier visual parsing.
 
 It prioritizes recognizability and scanability over visual uniformity, reducing fatigue during prolonged reading.
+
+Font loading lives in `src/lib/fonts.ts`. CSS owns where loaded fonts are applied through `--font-body` and `--font-code`.
 
 Theme tokens live in `src/styles/theme.css`. Typography and component classes live in `src/styles/prose.css` and `src/styles/code.css`.
 
