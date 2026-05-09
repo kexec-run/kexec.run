@@ -60,6 +60,13 @@
   margin-top: 0;
 }
 
+.content-date {
+  color: var(--color-dim);
+  display: block;
+  font-size: 14px;
+  margin: -18px 0 32px;
+}
+
 .prose p,
 .prose ul,
 .prose ol,

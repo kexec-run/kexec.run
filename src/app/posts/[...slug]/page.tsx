@@ -42,6 +42,12 @@ export default async function PostPage({ params }: PageProps) {
   return (
     <main>
       <Prose>
+        <h1>{entry.metadata.title}</h1>
+        {entry.metadata.date ? (
+          <time className="content-date" dateTime={entry.metadata.date}>
+            {entry.metadata.date}
+          </time>
+        ) : null}
         <PostContent />
       </Prose>
     </main>

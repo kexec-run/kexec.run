@@ -12,7 +12,7 @@ export default function EntryRow({ entry }: EntryRowProps) {
       <div className="entry-row-main">
         {entry.metadata.date ? <time dateTime={entry.metadata.date}>{entry.metadata.date}</time> : null}
         <h3>
-          <Link href={entry.href}>{entry.metadata.title}</Link>
+          <Link href={entry.href}>{entry.metadata.title.toLowerCase()}</Link>
         </h3>
         {entry.metadata.tags && entry.metadata.tags.length > 0 ? (
           <ul className="entry-tags" aria-label={`${entry.metadata.title} tags`}>
