@@ -43,8 +43,8 @@
 
 .prose {
   color: var(--color-text);
-  font-size: 15px;
-  line-height: 1.85;
+  font-size: 16px;
+  line-height: 1.9;
 }
 
 .prose h1,
@@ -131,13 +131,13 @@
 }
 
 .entry-row {
-  padding: 14px 0;
+  padding: 16px 0;
 }
 
 .entry-row-main {
   align-items: baseline;
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-columns: minmax(112px, max-content) minmax(0, 1fr) max-content;
   min-width: 0;
 }

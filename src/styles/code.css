@@ -1,6 +1,13 @@
 code,
-pre {
-  font-family: var(--font-mono);
+pre,
+kbd,
+samp {
+  font-family: var(--font-code);
+  font-optical-sizing: auto;
+}
+
+pre code {
+  font-family: inherit;
 }
 
 :not(pre) > code {

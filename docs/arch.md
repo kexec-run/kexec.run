@@ -350,7 +350,12 @@ Current theme:
 - Foreground: `#d1d5db`
 - Heading text: `#fff`
 - Accent: `#ff6b35`
-- Primary font: JetBrains Mono
+- Body font: Atkinson Hyperlegible
+- Code font: Atkinson Hyperlegible Mono
+
+The typography system switched to Atkinson Hyperlegible and Atkinson Hyperlegible Mono for stronger character differentiation and easier visual parsing.
+
+It prioritizes recognizability and scanability over visual uniformity, reducing fatigue during prolonged reading.
 
 Theme tokens live in `src/styles/theme.css`. Typography and component classes live in `src/styles/prose.css` and `src/styles/code.css`.
 
