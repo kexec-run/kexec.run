@@ -1,7 +1,9 @@
+import type { ReactNode } from "react"
+
 type FooterProps = {
-  text: string
+  children: ReactNode
 }
 
-export default function Footer({ text }: FooterProps) {
-  return <footer className="site-footer">{text}</footer>
+export default function Footer({ children }: FooterProps) {
+  return <footer className="site-footer">{children}</footer>
 }

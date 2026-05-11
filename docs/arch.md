@@ -94,8 +94,6 @@ Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsc
 
 ```text
 .
-├── assets/ - source images and added assets
-│   └── .gitkeep
 ├── content/ - authored MDX content root
 │   ├── pages/ - authored pages and curated page fragments
 │   │   ├── about.mdx - reusable about page content
@@ -332,6 +330,8 @@ The tag index and detail pages are generated from normalized tags across posts a
 
 A tag detail page shows posts for that tag, so project stack tags act as shortcuts into related writing. If a tag exists only on a project and no post uses it yet, the tag page remains valid and renders an empty posts state instead of 404.
 
+Tag detail pages intentionally do not list projects right now. The site is writing-centric, and the project index is small enough to scan directly. Project tags point readers toward related writing instead of duplicating the project index through another navigation surface.
+
 Unknown tags that are not used anywhere still 404.
 
 ## Projects
@@ -390,9 +390,8 @@ Theme tokens live in `src/styles/theme.css`. Typography and component classes li
 
 ## Static Assets And Output
 
-- `assets/` stores source images and added assets.
-- `public/` remains Next.js static asset input.
-- `out/` remains generated static export output.
+- `public/` stores original/static site assets and remains the Next.js static asset input.
+- `out/` remains generated static export output and can hold optimized generated images later.
 
 Next.js does not allow `public/` as the static export output directory, because `public/` is reserved as an input folder.
 

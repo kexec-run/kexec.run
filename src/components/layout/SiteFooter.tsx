@@ -1,7 +1,10 @@
 import Footer from "@/components/layout/Footer"
-
-const footerText = "Static output. Filesystem topology."
+import FooterContent from "../../../content/pages/footer.mdx"
 
 export default function SiteFooter() {
-  return <Footer text={footerText} />
+  return (
+    <Footer>
+      <FooterContent />
+    </Footer>
+  )
 }
