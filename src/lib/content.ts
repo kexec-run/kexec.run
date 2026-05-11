@@ -50,13 +50,7 @@ export function normalizeTags(tags: string[] | undefined): ResolvedTag[] {
       return []
     }
 
-    return [
-      {
-        label: tag,
-        slug,
-        href: `/posts/tags/${slug}`
-      }
-    ]
+    return [{ label: tag, slug, href: `/tags/${slug}` }]
   })
 }
 
@@ -227,18 +221,22 @@ export function getEntry(collection: CollectionName, slug: string[]): ContentEnt
   return getCollectionEntries(collection).find((entry) => entry.slug.join("/") === slug.join("/")) ?? null
 }
 
-export function getPostTags(): Array<{ tag: string }> {
-  const tagSlugs = new Set<string>()
+export function getTags(): ResolvedTag[] {
+  const tags = new Map<string, ResolvedTag>()
 
-  getCollectionEntries("posts").forEach((entry) => {
-    entry.tags.forEach((tag) => tagSlugs.add(tag.slug))
+  collections.forEach((collection) => {
+    getCollectionEntries(collection).forEach((entry) => {
+      entry.tags.forEach((tag) => {
+        if (!tags.has(tag.slug)) {
+          tags.set(tag.slug, tag)
+        }
+      })
+    })
   })
 
-  return Array.from(tagSlugs)
-    .sort((a, b) => a.localeCompare(b))
-    .map((tag) => ({ tag }))
+  return Array.from(tags.values()).sort((a, b) => a.label.localeCompare(b.label))
 }
 
-export function getPostsByTag(tag: string): ContentEntry[] {
+export function getTaggedPosts(tag: string): ContentEntry[] {
   return getCollectionEntries("posts").filter((entry) => entry.tags.some((entryTag) => entryTag.slug === tag))
 }

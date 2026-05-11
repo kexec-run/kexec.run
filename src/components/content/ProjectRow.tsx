@@ -43,7 +43,7 @@ export default function ProjectRow({ children, link, period, position, stack, ti
       {stack.length > 0 ? (
         <ul className="project-entry-stack" aria-label={`${title} stack`}>
           {stack.map((tag) => (
-            <li key={tag.href}>
+            <li key={tag.slug}>
               <Link href={tag.href}>{tag.label}</Link>
             </li>
           ))}

@@ -16,7 +16,7 @@ export default function EntryRow({ entry }: EntryRowProps) {
         {entry.tags.length > 0 ? (
           <ul className="entry-tags" aria-label={`${entry.metadata.title} tags`}>
             {entry.tags.map((tag) => (
-              <li key={tag.href}>
+              <li key={tag.slug}>
                 <Link href={tag.href}>{tag.label}</Link>
               </li>
             ))}

@@ -114,15 +114,16 @@ Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsc
 │       └── .gitkeep
 ├── src/ - application source code
 │   ├── app/ - Next.js App Router routes
-│   │   ├── posts/ - post index, detail, and tag routes
+│   │   ├── posts/ - post index and detail routes
 │   │   │   ├── [...slug]/
 │   │   │   │   └── page.tsx
-│   │   │   ├── tags/
-│   │   │   │   └── [tag]/
-│   │   │   │       └── page.tsx
 │   │   │   └── page.tsx
 │   │   ├── projects/ - curated project index and detail routes
 │   │   │   ├── [...slug]/
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── tags/ - global tag index and detail routes
+│   │   │   ├── [tag]/
 │   │   │   │   └── page.tsx
 │   │   │   └── page.tsx
 │   │   ├── globals.css - global stylesheet imports
@@ -184,6 +185,22 @@ content/
 ```
 
 `src/lib/content.ts` is the only place that scans the filesystem. It owns frontmatter parsing, metadata normalization, sorting, route derivation, collection resolution, page resolution, and tag resolution.
+
+## Invariants
+
+These invariants describe the boundaries that should remain true as the site evolves.
+
+- T1: Content topology is defined by files and folders under `content/`; renderers must not encode slug or hierarchy rules.
+- T2: Filesystem access is centralized in `src/lib/content.ts`; React renderers and MDX-authored content must not read files directly.
+- T3: MDX declares composition intent only; it must not perform sorting, filtering, filesystem traversal, or runtime data loading.
+- T4: Parent RSCs and MDX adapters resolve declarations into normalized props before presentational renderers receive them.
+- T5: Presentational renderers consume normalized data only; they must not call filesystem helpers or construct route policy from raw content fields.
+- T6: Missing, empty, invalid, or unpublished collections are skipped before pure renderers receive props.
+- T7: Tag labels, slugs, and global hrefs are normalized in `src/lib/content.ts`; renderers must not construct tag routes.
+- T8: Shell navigation is global application shell; homepage MDX controls homepage content composition only.
+- T9: Project index ordering is curated by `content/pages/projects.mdx`; project detail topology is defined by `content/projects/**/*.mdx`.
+- T10: CSS owns visual language and font application; content and TypeScript layers must not encode visual styling.
+- T11: Static export must remain verifiable with `npm run build`; dynamic content patterns are acceptable only when the generated route set is proven at build time.
 
 ## MDX Boundary
 
@@ -288,26 +305,34 @@ Empty, invalid, unpublished, or missing collections are skipped before presentat
 
 Posts are filesystem-driven under `content/posts`.
 
-Post routes and tag routes are generated from normalized post content:
+Post routes are generated from normalized post content:
 
 ```text
 /posts
 /posts/[...slug]
-/posts/tags/[tag]
+```
+
+Tags are global metadata, not post-owned routes:
+
+```text
+/tags
+/tags/[tag]
 ```
 
 Post tags come from post frontmatter and are normalized into `{ label, slug, href }` objects before renderers receive them.
 
-Tag slugs and hrefs are normalized with `slugifyTag()` and `normalizeTags()` in `src/lib/content.ts`.
-
 Examples:
 
 ```text
-next.js -> /posts/tags/next-js
-content-driven -> /posts/tags/content-driven
+next.js -> { label: "next.js", slug: "next-js", href: "/tags/next-js" }
+content-driven -> { label: "content-driven", slug: "content-driven", href: "/tags/content-driven" }
 ```
 
-The tag pages are generated from actual post frontmatter. Project stack tags are normalized through the same content helper and link into these same post tag routes, so project technologies connect back to related writing.
+The tag index and detail pages are generated from normalized tags across posts and projects. A tag exists if it is used by any indexed content type.
+
+A tag detail page shows posts for that tag, so project stack tags act as shortcuts into related writing. If a tag exists only on a project and no post uses it yet, the tag page remains valid and renders an empty posts state instead of 404.
+
+Unknown tags that are not used anywhere still 404.
 
 ## Projects
 
@@ -317,7 +342,7 @@ The `/projects` index is curated MDX, not an auto-generated project collection.
 content/pages/projects.mdx
 ```
 
-Project rows are authored with `<Project />`. The MDX-facing component resolves project declarations and normalized stack tags before handing them to the pure `ProjectRow` renderer. Stack tags link into generated post tag pages.
+Project rows are authored with `<Project />`. The MDX-facing component resolves project declarations and normalized stack tags before handing them to the pure `ProjectRow` renderer. Stack tags link to global tag routes that show related posts.
 
 Project detail pages may still live under `content/projects` and resolve to nested static routes.
 
@@ -394,4 +419,4 @@ npm run typecheck
 npm run build
 ```
 
-The static export should generate routes for the home page, posts, nested posts, post tag pages, projects, and nested project detail pages.
+The static export should generate routes for the home page, posts, nested posts, global tag pages, projects, and nested project detail pages.
