@@ -1,6 +1,6 @@
-import Link from "next/link"
 import type { ReactNode } from "react"
-import { slugifyTag } from "@/lib/content"
+import ProjectRow from "@/components/content/ProjectRow"
+import { normalizeTags } from "@/lib/content"
 
 type ProjectProps = {
   children: ReactNode
@@ -12,44 +12,11 @@ type ProjectProps = {
 }
 
 export default function Project({ children, href, period, position, stack = [], title }: ProjectProps) {
-  const isExternalHref = href ? /^https?:\/\//.test(href) : false
+  const link = href ? { href, external: /^https?:\/\//.test(href) } : undefined
 
   return (
-    <article className="project-entry">
-      <header className="project-entry-header">
-        <h2>
-          {href && isExternalHref ? (
-            <a href={href} rel="noreferrer" target="_blank">
-              {title}
-            </a>
-          ) : href ? (
-            <Link href={href}>{title}</Link>
-          ) : (
-            title
-          )}
-        </h2>
-        {position || period ? (
-          <p className="project-entry-meta">
-            {[position, period].filter(Boolean).join(" · ")}
-          </p>
-        ) : null}
-      </header>
-
-      <div className="project-entry-description">{children}</div>
-
-      {stack.length > 0 ? (
-        <ul className="project-entry-stack" aria-label={`${title} stack`}>
-          {stack.map((tag) => {
-            const slug = slugifyTag(tag)
-
-            return (
-              <li key={tag}>
-                <Link href={`/posts/tags/${slug}`}>{tag}</Link>
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
-    </article>
+    <ProjectRow link={link} period={period} position={position} stack={normalizeTags(stack)} title={title}>
+      {children}
+    </ProjectRow>
   )
 }

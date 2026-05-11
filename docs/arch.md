@@ -132,7 +132,8 @@ Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsc
 │   │   ├── content/ - normalized content renderers
 │   │   │   ├── CollectionBlock.tsx
 │   │   │   ├── EntryList.tsx
-│   │   │   └── EntryRow.tsx
+│   │   │   ├── EntryRow.tsx
+│   │   │   └── ProjectRow.tsx
 │   │   ├── layout/ - site shell and layout renderers
 │   │   │   ├── Container.tsx
 │   │   │   ├── Footer.tsx
@@ -145,7 +146,7 @@ Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsc
 │   │   │   ├── Elsewhere.tsx - external links section component
 │   │   │   ├── Note.tsx - semantic note block
 │   │   │   ├── Page.tsx - includes authored page MDX
-│   │   │   ├── Project.tsx - curated project row component
+│   │   │   ├── Project.tsx - resolves curated project declarations
 │   │   │   └── Warning.tsx - semantic warning block
 │   │   └── ui/ - small UI primitives
 │   │       ├── Divider.tsx - horizontal divider primitive
@@ -295,9 +296,9 @@ Post routes and tag routes are generated from normalized post content:
 /posts/tags/[tag]
 ```
 
-Post tags come from post frontmatter and are rendered as clickable links to generated tag pages.
+Post tags come from post frontmatter and are normalized into `{ label, slug, href }` objects before renderers receive them.
 
-Tag slugs are normalized with `slugifyTag()` in `src/lib/content.ts`.
+Tag slugs and hrefs are normalized with `slugifyTag()` and `normalizeTags()` in `src/lib/content.ts`.
 
 Examples:
 
@@ -306,7 +307,7 @@ next.js -> /posts/tags/next-js
 content-driven -> /posts/tags/content-driven
 ```
 
-The tag pages are generated from actual post frontmatter. Project stack tags link into these same post tag routes, so project technologies connect back to related writing.
+The tag pages are generated from actual post frontmatter. Project stack tags are normalized through the same content helper and link into these same post tag routes, so project technologies connect back to related writing.
 
 ## Projects
 
@@ -316,7 +317,7 @@ The `/projects` index is curated MDX, not an auto-generated project collection.
 content/pages/projects.mdx
 ```
 
-Project rows are authored with `<Project />`. Stack tags link into generated post tag pages.
+Project rows are authored with `<Project />`. The MDX-facing component resolves project declarations and normalized stack tags before handing them to the pure `ProjectRow` renderer. Stack tags link into generated post tag pages.
 
 Project detail pages may still live under `content/projects` and resolve to nested static routes.
 

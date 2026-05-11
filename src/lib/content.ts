@@ -11,6 +11,7 @@ import type {
   ResolvedCollection,
   ResolvedPage,
   ResolvedSection,
+  ResolvedTag,
   SectionDeclaration
 } from "@/types/content"
 
@@ -35,6 +36,28 @@ export function slugifyTag(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
+}
+
+export function normalizeTags(tags: string[] | undefined): ResolvedTag[] {
+  if (!tags) {
+    return []
+  }
+
+  return tags.flatMap((tag) => {
+    const slug = slugifyTag(tag)
+
+    if (!slug) {
+      return []
+    }
+
+    return [
+      {
+        label: tag,
+        slug,
+        href: `/posts/tags/${slug}`
+      }
+    ]
+  })
 }
 
 function isSafeContentPath(value: string): boolean {
@@ -103,6 +126,7 @@ export function getCollectionEntries(collection: CollectionName): ContentEntry[]
         slug,
         href: `/${collection}/${slug.join("/")}`,
         metadata,
+        tags: normalizeTags(metadata.tags),
         excerpt: metadata.description ?? firstContentLine(content)
       }
     })
@@ -207,13 +231,7 @@ export function getPostTags(): Array<{ tag: string }> {
   const tagSlugs = new Set<string>()
 
   getCollectionEntries("posts").forEach((entry) => {
-    entry.metadata.tags?.forEach((tag) => {
-      const slug = slugifyTag(tag)
-
-      if (slug) {
-        tagSlugs.add(slug)
-      }
-    })
+    entry.tags.forEach((tag) => tagSlugs.add(tag.slug))
   })
 
   return Array.from(tagSlugs)
@@ -222,7 +240,5 @@ export function getPostTags(): Array<{ tag: string }> {
 }
 
 export function getPostsByTag(tag: string): ContentEntry[] {
-  return getCollectionEntries("posts").filter((entry) =>
-    entry.metadata.tags?.some((entryTag) => slugifyTag(entryTag) === tag)
-  )
+  return getCollectionEntries("posts").filter((entry) => entry.tags.some((entryTag) => entryTag.slug === tag))
 }

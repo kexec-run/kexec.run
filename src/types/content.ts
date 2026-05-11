@@ -21,11 +21,18 @@ export type ContentMetadata = {
   published: boolean
 }
 
+export type ResolvedTag = {
+  label: string
+  slug: string
+  href: string
+}
+
 export type ContentEntry = {
   collection: CollectionName
   slug: string[]
   href: string
   metadata: ContentMetadata
+  tags: ResolvedTag[]
   excerpt: string
 }
 

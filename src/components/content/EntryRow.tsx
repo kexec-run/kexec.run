@@ -1,6 +1,5 @@
 import Link from "next/link"
 import type { ContentEntry } from "@/types/content"
-import { slugifyTag } from "@/lib/content"
 
 type EntryRowProps = {
   entry: ContentEntry
@@ -14,11 +13,11 @@ export default function EntryRow({ entry }: EntryRowProps) {
         <h3>
           <Link href={entry.href}>{entry.metadata.title.toLowerCase()}</Link>
         </h3>
-        {entry.metadata.tags && entry.metadata.tags.length > 0 ? (
+        {entry.tags.length > 0 ? (
           <ul className="entry-tags" aria-label={`${entry.metadata.title} tags`}>
-            {entry.metadata.tags.map((tag) => (
-              <li key={tag}>
-                <Link href={`/posts/tags/${slugifyTag(tag)}`}>{tag}</Link>
+            {entry.tags.map((tag) => (
+              <li key={tag.href}>
+                <Link href={tag.href}>{tag.label}</Link>
               </li>
             ))}
           </ul>
