@@ -1,0 +1,59 @@
+# kexec.run
+
+Filesystem-driven MDX publishing system built with Next.js App Router, React Server Components, and static export.
+
+## Shape
+
+```text
+content/
+  pages/     authored pages and page fragments
+  posts/     filesystem-driven blog posts
+  projects/  project detail pages
+
+src/
+  app/        routes and parent RSC orchestration
+  lib/        content parsing, resolution, fonts, MDX helpers
+  components/ renderers and MDX adapters
+  styles/     visual system
+```
+
+## Boundaries
+
+- Filesystem owns topology.
+- MDX owns declaration and composition.
+- Parent RSCs and adapters own resolution.
+- `src/lib/content.ts` owns parsing, normalization, sorting, and route derivation.
+- React components render normalized props.
+- CSS owns visual language.
+
+## Content
+
+Homepage composition lives in `content/pages/home.mdx`.
+
+Posts live under `content/posts` and support nested routes:
+
+```text
+content/posts/linux/optimg.mdx
+-> /posts/linux/optimg
+```
+
+Projects have two surfaces:
+
+- `content/pages/projects.mdx` for the curated project index.
+- `content/projects/**/*.mdx` for project detail pages.
+
+Footer links live in `content/pages/footer.mdx`.
+
+## Commands
+
+```bash
+npm run dev
+npm run typecheck
+npm run build
+```
+
+Static export output is generated in `out/`.
+
+## Docs
+
+Architecture notes live in `docs/arch.md`.
