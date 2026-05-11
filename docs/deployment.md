@@ -61,3 +61,5 @@ npm run build
 ```
 
 The static export should generate routes for the home page, posts, nested posts, global tag pages, projects, and nested project detail pages.
+
+Nonexistent static routes should fall through to the generated `404.html`, which is backed by `src/app/not-found.tsx`.

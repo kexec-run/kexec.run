@@ -29,7 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
 
   return (
     <html lang="en">
-      <body className={`${atkinson.variable} ${atkinsonMono.variable}`}>
+      <body className={`${atkinson.className} ${atkinson.variable} ${atkinsonMono.variable}`}>
         <Container>
           {sections.length > 0 ? <SiteHeader sections={sections} /> : null}
           <div className="site-main">{children}</div>
