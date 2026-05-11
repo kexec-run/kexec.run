@@ -12,7 +12,7 @@ export default function PostsPage() {
 
   return (
     <main className="prose">
-      <h1>Posts</h1>
+      <h1>posts</h1>
       <EntryList entries={entries} />
     </main>
   )
