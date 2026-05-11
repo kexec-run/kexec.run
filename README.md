@@ -56,4 +56,7 @@ Static export output is generated in `out/`.
 
 ## Docs
 
-Architecture notes live in `docs/arch.md`.
+- [Architecture](docs/arch.md)
+- [Editing](docs/editing.md)
+- [Styling](docs/styling.md)
+- [Deployment](docs/deployment.md)
