@@ -1,6 +1,6 @@
 # Editing
 
-This doc covers content changes: pages, posts, projects, tags, and footer links.
+This doc covers content changes: pages, posts, projects, and tags.
 
 ## Content Topology
 
@@ -110,7 +110,6 @@ Examples:
 ```text
 content/pages/home.mdx
 content/pages/about.mdx
-content/pages/footer.mdx
 content/pages/projects.mdx
 ```
 
@@ -119,8 +118,6 @@ content/pages/projects.mdx
 ```mdx
 <Page path="about" />
 ```
-
-`footer.mdx` is plain Markdown footer content rendered by the global footer shell.
 
 `projects.mdx` is the curated projects index. It is intentionally authored instead of generated from `content/projects`.
 
@@ -204,3 +201,5 @@ The curated index avoids over-generalizing project metadata. A project row decla
 ```
 
 This keeps project-list structure explicit in MDX without making every post/page frontmatter carry project-specific fields.
+
+If a project stack tag should generate a global tag page, mirror that tag in the matching project detail frontmatter under `content/projects`. Tag route generation reads indexed content metadata, not arbitrary `<Project stack={...}>` props inside `content/pages/projects.mdx`.

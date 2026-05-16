@@ -16,7 +16,6 @@ Footer follows the same shell naming:
 
 - `src/components/layout/SiteFooter.tsx` is the shell footer.
 - `src/components/layout/Footer.tsx` is the presentational footer renderer.
-- `content/pages/footer.mdx` owns footer link content.
 
 ## Renderer Boundaries
 

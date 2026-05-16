@@ -63,6 +63,7 @@ Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsc
 │   └── images/
 ├── src/ - application source code
 │   ├── app/ - Next.js App Router routes
+│   │   ├── tags/ - global tag index and detail routes
 │   ├── components/ - React components
 │   ├── lib/ - content, font, and MDX runtime helpers
 │   ├── styles/ - CSS system
@@ -97,7 +98,35 @@ These invariants describe the boundaries that should remain true as the site evo
 - T5: Presentational renderers consume normalized data only; they must not call filesystem helpers or construct route policy from raw content fields.
 - T6: Missing, empty, invalid, or unpublished collections are skipped before pure renderers receive props.
 - T7: Tag labels, slugs, and global hrefs are normalized in `src/lib/content.ts`; renderers must not construct tag routes.
+- T7a: Tag route generation comes from indexed content metadata, not renderer props.
 - T8: Shell navigation is global application shell; homepage MDX controls homepage content composition only.
 - T9: Project index ordering is curated by `content/pages/projects.mdx`; project detail topology is defined by `content/projects/**/*.mdx`.
 - T10: CSS owns visual language and font application; content and TypeScript layers must not encode visual styling.
 - T11: Static export must remain verifiable with `npm run build`; dynamic content patterns are acceptable only when the generated route set is proven at build time.
+
+## Tags
+
+Tags are global metadata, not post-owned routes.
+
+```text
+/tags
+/tags/[tag]
+```
+
+Tag labels, slugs, and hrefs are normalized in `src/lib/content.ts`.
+
+```text
+next.js -> { label: "next.js", slug: "next-js", href: "/tags/next-js" }
+```
+
+Tag route generation comes from indexed content metadata in `content/posts` and `content/projects`. It does not come from renderer props alone.
+
+`/tags/[tag]` lists posts only. Project stack tags link to global tag pages as shortcuts into related writing. If a tag exists only on a project and no post uses it yet, the tag page remains valid and renders an empty posts state instead of 404.
+
+Unknown tags that are not used anywhere still 404.
+
+## Known Tradeoffs
+
+- `src/lib/content.ts` scans files repeatedly during build. This is acceptable at the current content size; add memoization or a generated manifest only when build time makes it necessary.
+- Dynamic MDX imports are accepted because static export is verified with `npm run build`. If route discovery becomes fragile, replace them with a generated import manifest.
+- Global tag pages list posts only because the site is writing-centric. Projects remain discoverable through `/projects`, which is small enough to scan directly.
