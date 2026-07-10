@@ -170,10 +170,7 @@
   font-size: 18px;
   font-weight: 400;
   margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 36ch;
 }
 
 .entry-row time {

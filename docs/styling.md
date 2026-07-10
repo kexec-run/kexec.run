@@ -60,6 +60,8 @@ Theme tokens live in `src/styles/theme.css`. Typography and component classes li
 
 List metadata uses the secondary text token so dates, tags, and supporting navigation remain quieter than post and project titles.
 
+Entry titles use a `36ch` reading measure and wrap rather than ellipsize, preserving complete titles in index rows.
+
 Homepage entry tags use outline-only chips. Project index stack tags use slightly stronger boxed chips because they are part of the project row content, not just row metadata.
 
 ## Typography
