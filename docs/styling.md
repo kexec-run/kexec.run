@@ -12,10 +12,11 @@ Header navigation is global application shell, not homepage composition.
 - `src/components/layout/Header.tsx` is the pure nav renderer.
 - `<Header />` is not registered as an MDX component.
 
-Footer follows the same shell naming:
+Footer follows the same shell naming, but its content can be authored:
 
-- `src/components/layout/SiteFooter.tsx` is the shell footer.
+- `src/components/layout/SiteFooter.tsx` is the shell footer adapter.
 - `src/components/layout/Footer.tsx` is the presentational footer renderer.
+- `content/pages/footer.mdx` is allowed as authored footer content, because footer copy and links may change without becoming application logic.
 
 ## Renderer Boundaries
 

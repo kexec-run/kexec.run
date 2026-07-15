@@ -111,6 +111,7 @@ Examples:
 content/pages/home.mdx
 content/pages/about.mdx
 content/pages/projects.mdx
+content/pages/footer.mdx
 ```
 
 `home.mdx` is the homepage composition surface. It can include other pages:

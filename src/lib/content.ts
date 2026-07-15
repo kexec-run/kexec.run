@@ -18,6 +18,12 @@ import type {
 const contentRoot = path.join(process.cwd(), "content")
 const collections: CollectionName[] = ["posts", "projects"]
 
+function invariant(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(`[content invariant] ${message}`)
+  }
+}
+
 function isCollectionName(value: string): value is CollectionName {
   return collections.includes(value as CollectionName)
 }
@@ -43,12 +49,17 @@ export function normalizeTags(tags: string[] | undefined): ResolvedTag[] {
     return []
   }
 
+  const seen = new Map<string, string>()
+
   return tags.flatMap((tag) => {
     const slug = slugifyTag(tag)
 
     if (!slug) {
       return []
     }
+
+    invariant(!seen.has(slug), `Duplicate tag ${JSON.stringify(tag)} normalizes to ${slug}`)
+    seen.set(slug, tag)
 
     return [{ label: tag, slug, href: `/tags/${slug}` }]
   })
@@ -84,14 +95,39 @@ function listMdxFiles(dir: string): string[] {
   })
 }
 
-function normalizeMetadata(data: Record<string, unknown>): ContentMetadata {
+function normalizeMetadata(data: Record<string, unknown>, source: string): ContentMetadata {
+  if (data.title !== undefined) {
+    invariant(typeof data.title === "string" && data.title.trim().length > 0, `Invalid title in ${source}`)
+  }
+  if (data.description !== undefined) {
+    invariant(typeof data.description === "string", `Invalid description in ${source}`)
+  }
+  if (data.date !== undefined) {
+    invariant(
+      typeof data.date === "string" && Number.isFinite(Date.parse(data.date)),
+      `Invalid date in ${source}`,
+    )
+  }
+  if (data.tags !== undefined) {
+    invariant(
+      Array.isArray(data.tags) && data.tags.every((tag) => typeof tag === "string"),
+      `Invalid tags in ${source}`,
+    )
+  }
+  if (data.status !== undefined) {
+    invariant(typeof data.status === "string", `Invalid status in ${source}`)
+  }
+  if (data.published !== undefined) {
+    invariant(typeof data.published === "boolean", `Invalid published flag in ${source}`)
+  }
+
   return {
     title: typeof data.title === "string" ? data.title : "Untitled",
     description: typeof data.description === "string" ? data.description : undefined,
     date: typeof data.date === "string" ? data.date : undefined,
     tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : undefined,
     status: typeof data.status === "string" ? data.status : undefined,
-    published: data.published !== false
+    published: data.published === undefined ? true : Boolean(data.published),
   }
 }
 
@@ -106,14 +142,21 @@ function firstContentLine(body: string): string {
 
 export function getCollectionEntries(collection: CollectionName): ContentEntry[] {
   const collectionRoot = path.join(contentRoot, collection)
+  const seenSlugs = new Map<string, string>()
 
   return listMdxFiles(collectionRoot)
     .map((filePath) => {
+      invariant(path.extname(filePath).toLowerCase() === ".mdx", `Unsupported content extension in ${filePath}; use .mdx`)
+
       const relative = toPosixPath(path.relative(collectionRoot, filePath))
       const slug = withoutExtension(relative).split("/")
+      const slugKey = slug.join("/")
+      invariant(!seenSlugs.has(slugKey), `Duplicate ${collection} route slug ${slugKey}`)
+      seenSlugs.set(slugKey, filePath)
+
       const raw = fs.readFileSync(filePath, "utf8")
       const { data, content } = matter(raw)
-      const metadata = normalizeMetadata(data)
+      const metadata = normalizeMetadata(data, filePath)
 
       return {
         collection,
@@ -121,7 +164,7 @@ export function getCollectionEntries(collection: CollectionName): ContentEntry[]
         href: `/${collection}/${slug.join("/")}`,
         metadata,
         tags: normalizeTags(metadata.tags),
-        excerpt: metadata.description ?? firstContentLine(content)
+        excerpt: metadata.description ?? firstContentLine(content),
       }
     })
     .filter((entry) => entry.metadata.published)
@@ -134,14 +177,11 @@ export function getCollectionEntries(collection: CollectionName): ContentEntry[]
 
 export function getPageMetadata(page: PageName): ContentMetadata {
   const filePath = path.join(contentRoot, "pages", `${page}.mdx`)
-
-  if (!fs.existsSync(filePath)) {
-    return normalizeMetadata({})
-  }
+  invariant(fs.existsSync(filePath), `Missing required page ${filePath}`)
 
   const raw = fs.readFileSync(filePath, "utf8")
   const { data } = matter(raw)
-  return normalizeMetadata(data)
+  return normalizeMetadata(data, filePath)
 }
 
 export function resolvePage(declaration: PageDeclaration): ResolvedPage | null {
@@ -161,7 +201,7 @@ export function resolvePage(declaration: PageDeclaration): ResolvedPage | null {
 
   return {
     path: pagePath,
-    metadata: normalizeMetadata(data)
+    metadata: normalizeMetadata(data, filePath),
   }
 }
 
@@ -172,6 +212,13 @@ function collectionLabel(collection: CollectionName): string {
 export function resolveCollection(declaration: CollectionDeclaration): ResolvedCollection | null {
   if (!isCollectionName(declaration.path)) {
     return null
+  }
+
+  if (declaration.limit !== undefined) {
+    invariant(
+      typeof declaration.limit === "number" && Number.isInteger(declaration.limit) && declaration.limit >= 0,
+      `Invalid collection limit for ${declaration.path}`,
+    )
   }
 
   const entries = getCollectionEntries(declaration.path)
@@ -186,8 +233,8 @@ export function resolveCollection(declaration: CollectionDeclaration): ResolvedC
     title: declaration.title,
     viewAll: {
       href: `/${declaration.path}`,
-      label: `all ${collectionLabel(declaration.path)}`
-    }
+      label: `all ${collectionLabel(declaration.path)}`,
+    },
   }
 }
 
@@ -227,7 +274,12 @@ export function getTags(): ResolvedTag[] {
   collections.forEach((collection) => {
     getCollectionEntries(collection).forEach((entry) => {
       entry.tags.forEach((tag) => {
-        if (!tags.has(tag.slug)) {
+        const existing = tags.get(tag.slug)
+        invariant(
+          !existing || existing.label === tag.label,
+          `Tag labels ${JSON.stringify(existing?.label)} and ${JSON.stringify(tag.label)} share slug ${tag.slug}`,
+        )
+        if (!existing) {
           tags.set(tag.slug, tag)
         }
       })

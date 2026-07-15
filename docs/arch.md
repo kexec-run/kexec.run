@@ -100,9 +100,15 @@ These invariants describe the boundaries that should remain true as the site evo
 - T7: Tag labels, slugs, and global hrefs are normalized in `src/lib/content.ts`; renderers must not construct tag routes.
 - T7a: Tag route generation comes from indexed content metadata, not renderer props.
 - T8: Shell navigation is global application shell; homepage MDX controls homepage content composition only.
+- T8a: Footer is global shell placement, but footer content may be authored through `content/pages/footer.mdx`; authored footer content must remain declarative and must not own shell mechanics.
 - T9: Project index ordering is curated by `content/pages/projects.mdx`; project detail topology is defined by `content/projects/**/*.mdx`.
 - T10: CSS owns visual language and font application; content and TypeScript layers must not encode visual styling.
 - T11: Static export must remain verifiable with `npm run build`; dynamic content patterns are acceptable only when the generated route set is proven at build time.
+
+
+## Content Validation
+
+The content resolver enforces data invariants during the build. Invalid metadata, non-boolean publication flags, invalid dates, duplicate route slugs, duplicate tag definitions, conflicting tag slugs, invalid collection limits, unsupported content extensions, and missing required page fragments fail with a descriptive [content invariant] error. Empty or unpublished collections remain valid and are skipped by the MDX adapter.
 
 ## Tags
 
