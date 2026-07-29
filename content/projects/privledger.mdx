@@ -2,11 +2,52 @@
 title: "Privledger"
 description: "A placeholder project entry for the filesystem-driven portfolio"
 date: "2026-05-07"
-tags: ["mdx", "next.js", "filesystem"]
+tags: ["mdx", "react", "typescript", "filesystem"]
 status: "active"
 published: true
 ---
 
 # Privledger
 
-Privledger is a placeholder project entry used to validate project collection routing and rendering.
+privledger is a local system for keeping daily recordings connected to the context around them.
+
+I started it because a recording can survive while the reason for making it slowly disappears. The file remains, but the circumstances, notes, and later interpretation become harder to reconstruct.
+
+## the drift of context
+
+A recording captures a moment. It does not automatically preserve everything that made the moment meaningful.
+
+That context may be added at the time of capture or later. The important part is that it remains associated with the original material instead of becoming another disconnected note.
+
+## original material and derived layers
+
+The original recording is the primary reference. Metadata, transcripts, summaries, and indexes are derived layers that make the material easier to understand and browse.
+
+Those layers are useful, but they are not substitutes for the source. They can be updated as context changes, and some of them can be rebuilt. The design therefore separates what was captured from the ways I choose to organize or interpret it.
+
+This distinction matters because organization is allowed to change without requiring the original material to change with it.
+
+## keeping context close
+
+Structured context gives each recording a place in a larger sequence. Transcripts provide a readable representation of the recording, while later enrichment allows details to be added after the initial capture.
+
+These layers make the material easier to search and review, but they remain connected to the source. If a derived representation is incomplete, the original recording is still the place to return to.
+
+## incomplete states
+
+Recording, metadata, and transcription are separate steps. Any of them can be incomplete.
+
+Privledger keeps those states visible. A missing transcript is not silently presented as a completed transcript. A failed metadata step is not treated as if it had succeeded. The aim is to preserve an accurate view of what is available and what still needs attention.
+
+That makes failure part of the record rather than something hidden behind a polished interface.
+
+## the local tradeoff
+
+Keeping the system local gives me direct access to the material and to the process that organizes it. I can inspect the underlying files, change the surrounding tools, and decide how much processing is useful.
+
+The tradeoff is responsibility. Local control also means maintaining the environment, understanding the stored material, and thinking about recovery when a step fails.
+
+This is not an attempt to make the original recording disappear behind a service or a single representation. It is a way of keeping the source close while allowing the layers around it to evolve.
+
+privledger is still a simple idea: preserve the original material, keep its context nearby, and make the organization built around it replaceable.
+
