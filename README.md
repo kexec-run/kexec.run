@@ -1,4 +1,4 @@
-# kexec.run
+# kexec-run
 
 Filesystem-driven MDX publishing system built with Next.js App Router, React Server Components, and static export.
 

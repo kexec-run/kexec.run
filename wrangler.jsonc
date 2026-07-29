@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "kexec.run",
+  "name": "kexec-run-dev",
   "compatibility_date": "2026-07-29",
   "assets": {
     "directory": "./out",
