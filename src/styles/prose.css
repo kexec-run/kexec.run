@@ -173,8 +173,8 @@
   max-width: 36ch;
 }
 
-.entry-row-title-only {
-  grid-template-columns: minmax(0, 1fr);
+.entry-row-project {
+  grid-template-columns: minmax(0, 1fr) max-content;
 }
 
 .entry-row time {

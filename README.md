@@ -42,7 +42,7 @@ Projects have two surfaces:
 - `content/pages/projects.mdx` for the curated project index.
 - `content/projects/**/*.mdx` for project detail pages.
 
-The homepage discovers projects from `content/projects/**/*.mdx` and shows their titles as links to the detail pages. A project added only to the curated index will not appear on the homepage. Dates and tags remain visible for blog rows, but are omitted from homepage project rows.
+The homepage discovers projects from `content/projects/**/*.mdx` and shows their titles as links to the detail pages, alongside their tags. A project added only to the curated index will not appear on the homepage. Blog rows also show dates; homepage project rows omit them.
 
 Set `showOnHomepage: false` in a project's frontmatter to hide it from the homepage only. It defaults to `true` and does not remove the detail page, tags, or curated `/projects` entry. `published: false` still excludes the detail file from collection discovery and generated detail routes.
 
