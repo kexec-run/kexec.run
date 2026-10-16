@@ -7,6 +7,11 @@ node_modules/
 .next/
 out/
 .content-cache/
+.codebase-memory/
+.codegraph/
+.serena/
+.env*
+!.env.example
 tsconfig.tsbuildinfo
 
 npm-debug.log*

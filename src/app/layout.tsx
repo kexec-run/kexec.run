@@ -20,8 +20,8 @@ const homeSection: ResolvedSection = {
 }
 
 export const metadata: Metadata = {
-  title: "Filesystem MDX Site",
-  description: "A static-first filesystem-driven MDX site"
+  title: "kexec.run",
+  description: "Notes on Linux, infrastructure, and other things I find interesting."
 }
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

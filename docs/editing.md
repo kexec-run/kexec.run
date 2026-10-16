@@ -172,6 +172,14 @@ Unknown tags that are not used anywhere still 404.
 
 ## Projects
 
+Project detail frontmatter supports a homepage-only switch:
+
+```yaml
+showOnHomepage: true
+```
+
+Use `false` to hide the project from the homepage. Omission means `true`. This must be a YAML boolean, not a quoted string. Homepage collections use `<Collection path="projects" homepage />`; they filter hidden projects before applying their limit. The detail page, tags, navigation, other collections, and manually curated project entries remain unchanged. This is separate from `published: false`, which excludes a detail file from indexed collections and detail routes.
+
 The `/projects` index is curated MDX, not an auto-generated project collection.
 
 ```text

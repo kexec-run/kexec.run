@@ -123,6 +123,9 @@ function normalizeMetadata(data: Record<string, unknown>, source: string): Conte
   if (data.published !== undefined) {
     invariant(typeof data.published === "boolean", `Invalid published flag in ${source}`)
   }
+  if (data.showOnHomepage !== undefined) {
+    invariant(typeof data.showOnHomepage === "boolean", `Invalid showOnHomepage flag in ${source}`)
+  }
 
   return {
     title: typeof data.title === "string" ? data.title : "Untitled",
@@ -131,6 +134,7 @@ function normalizeMetadata(data: Record<string, unknown>, source: string): Conte
     tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : undefined,
     status: typeof data.status === "string" ? data.status : undefined,
     published: data.published === undefined ? true : Boolean(data.published),
+    showOnHomepage: data.showOnHomepage === undefined ? true : data.showOnHomepage as boolean,
   }
 }
 
@@ -224,7 +228,13 @@ export function resolveCollection(declaration: CollectionDeclaration): ResolvedC
     )
   }
 
-  const entries = getCollectionEntries(declaration.path)
+  if (declaration.homepage !== undefined) {
+    invariant(typeof declaration.homepage === "boolean", `Invalid homepage flag for ${declaration.path}`)
+  }
+
+  const entries = getCollectionEntries(declaration.path).filter((entry) =>
+    !declaration.homepage || declaration.path !== "projects" || entry.metadata.showOnHomepage !== false,
+  )
   const limited = typeof declaration.limit === "number" ? entries.slice(0, declaration.limit) : entries
 
   if (limited.length === 0) {

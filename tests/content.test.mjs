@@ -84,3 +84,39 @@ test("conflicting labels across metadata and declarations fail clearly", async (
 test("missing content folders remain valid", async () => {
   await withContent({}, ({ getTags }) => assert.deepEqual(getTags(), []))
 })
+
+test("homepage visibility filters before limits without unpublishing projects", async () => {
+  await withContent({
+    "projects/hidden.mdx": '---\ntitle: Hidden\ndate: "2026-10-16"\nshowOnHomepage: false\ntags: [hidden-tag]\n---\nHidden.',
+    "projects/default.mdx": '---\ntitle: Default\ndate: "2026-10-15"\n---\nDefault.',
+    "projects/visible.mdx": '---\ntitle: Visible\ndate: "2026-10-14"\nshowOnHomepage: true\n---\nVisible.',
+    "projects/draft.mdx": '---\ntitle: Draft\npublished: false\nshowOnHomepage: true\n---\nDraft.',
+  }, ({ resolveCollection, getEntry, getStaticParams, getTags, resolveSections }) => {
+    const home = resolveCollection({ path: "projects", homepage: true, limit: 1 })
+    assert.deepEqual(home.entries.map((entry) => entry.metadata.title), ["Default"])
+    assert.deepEqual(resolveCollection({ path: "projects", homepage: true }).entries.map((entry) => entry.metadata.title),
+      ["Default", "Visible"])
+    assert.equal(resolveCollection({ path: "projects" }).entries.length, 3)
+    assert(getEntry("projects", ["hidden"]))
+    assert.equal(getStaticParams("projects").length, 3)
+    assert(getTags().some((tag) => tag.slug === "hidden-tag"))
+    assert.equal(resolveSections([{ path: "projects", label: "projects" }])[0].count, 3)
+  })
+})
+
+test("all homepage projects hidden is a valid empty collection", async () => {
+  await withContent({
+    "projects/hidden.mdx": '---\nshowOnHomepage: false\n---\nHidden.',
+  }, ({ resolveCollection, getStaticParams }) => {
+    assert.equal(resolveCollection({ path: "projects", homepage: true }), null)
+    assert.equal(getStaticParams("projects").length, 1)
+  })
+})
+
+test("invalid homepage visibility types fail clearly", async () => {
+  for (const value of ['"false"', "null", "0", "[]"]) {
+    await withContent({
+      "projects/invalid.mdx": `---\nshowOnHomepage: ${value}\n---\nInvalid.`,
+    }, ({ getCollectionEntries }) => assert.throws(() => getCollectionEntries("projects"), /Invalid showOnHomepage/))
+  }
+})

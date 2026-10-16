@@ -19,6 +19,7 @@ export type ContentMetadata = {
   tags?: string[]
   status?: string
   published: boolean
+  showOnHomepage?: boolean
 }
 
 export type ResolvedTag = {
@@ -40,6 +41,7 @@ export type CollectionDeclaration = {
   path: CollectionName
   title?: string
   limit?: number
+  homepage?: boolean
 }
 
 export type CollectionLink = {
