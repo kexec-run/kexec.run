@@ -98,7 +98,7 @@ These invariants describe the boundaries that should remain true as the site evo
 - T5: Presentational renderers consume normalized data only; they must not call filesystem helpers or construct route policy from raw content fields.
 - T6: Missing, empty, invalid, or unpublished collections are skipped before pure renderers receive props.
 - T7: Tag labels, slugs, and global hrefs are normalized in `src/lib/content.ts`; renderers must not construct tag routes.
-- T7a: Tag route generation comes from indexed content metadata, not renderer props.
+- T7a: Tag route generation comes from indexed frontmatter and static MDX project declarations, never renderer execution or render order.
 - T8: Shell navigation is global application shell; homepage MDX controls homepage content composition only.
 - T8a: Footer is global shell placement, but footer content may be authored through `content/pages/footer.mdx`; authored footer content must remain declarative and must not own shell mechanics.
 - T9: Project index ordering is curated by `content/pages/projects.mdx`; project detail topology is defined by `content/projects/**/*.mdx`.
@@ -125,7 +125,7 @@ Tag labels, slugs, and hrefs are normalized in `src/lib/content.ts`.
 next.js -> { label: "next.js", slug: "next-js", href: "/tags/next-js" }
 ```
 
-Tag route generation comes from indexed content metadata in `content/posts` and `content/projects`. It does not come from renderer props alone.
+Tag route generation combines frontmatter in `content/posts` and `content/projects` with literal `Project` stack declarations in published MDX under `content/pages`, `content/posts`, and `content/projects`. `src/lib/content.ts` parses declarations at build time using the MDX syntax tree, without evaluating expressions or rendering components. Code-fence examples are ignored. Stack values must be literal arrays of strings, with no prop spreads. This lets curated GitHub-only projects declare tags without a detail page or duplicate metadata.
 
 `/tags/[tag]` lists posts only. Project stack tags link to global tag pages as shortcuts into related writing. If a tag exists only on a project and no post uses it yet, the tag page remains valid and renders an empty posts state instead of 404.
 

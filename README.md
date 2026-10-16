@@ -44,11 +44,14 @@ Projects have two surfaces:
 
 Footer links live in `content/pages/footer.mdx`.
 
+Tags are discovered from post/project frontmatter and literal `<Project stack={["python", "javascript"]}>` declarations in published MDX under `content/pages`, `content/posts`, and `content/projects`. Stack tags do not require a project detail page. Keep stacks as explicit arrays of strings; computed values and prop spreads are rejected during the build.
+
 ## Commands
 
 ```bash
 npm run dev
 npm run typecheck
+npm test
 npm run build
 ```
 

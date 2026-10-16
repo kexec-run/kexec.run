@@ -203,4 +203,4 @@ The curated index avoids over-generalizing project metadata. A project row decla
 
 This keeps project-list structure explicit in MDX without making every post/page frontmatter carry project-specific fields.
 
-If a project stack tag should generate a global tag page, mirror that tag in the matching project detail frontmatter under `content/projects`. Tag route generation reads indexed content metadata, not arbitrary `<Project stack={...}>` props inside `content/pages/projects.mdx`.
+Project stack tags automatically generate global tag pages, even for projects linking directly to GitHub with no detail page. Do not duplicate them in another file just to create routes. The content index reads literal `stack={["python", "javascript"]}` declarations before rendering. Use explicit arrays of strings; computed stacks and prop spreads on `Project` are rejected. Fenced code examples do not create tags. Tag pages still list related posts, or show “No posts yet.” when none exist.

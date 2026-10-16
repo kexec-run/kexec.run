@@ -11,6 +11,7 @@ export const atkinsonMono = Atkinson_Hyperlegible_Mono({
   subsets: ["latin"],
   weight: "variable",
   display: "swap",
+  fallback: ["monospace"],
   adjustFontFallback: false,
   variable: "--font-atkinson-mono"
 })

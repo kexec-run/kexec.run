@@ -1,6 +1,8 @@
 import fs from "node:fs"
 import path from "node:path"
 import matter from "gray-matter"
+import { createProcessor } from "@mdx-js/mdx"
+import { visit } from "unist-util-visit"
 import type {
   CollectionDeclaration,
   CollectionName,
@@ -17,6 +19,7 @@ import type {
 
 const contentRoot = path.join(process.cwd(), "content")
 const collections: CollectionName[] = ["posts", "projects"]
+const mdxParser = createProcessor()
 
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -268,23 +271,67 @@ export function getEntry(collection: CollectionName, slug: string[]): ContentEnt
   return getCollectionEntries(collection).find((entry) => entry.slug.join("/") === slug.join("/")) ?? null
 }
 
+export function getDeclaredProjectTags(body: string, source: string): ResolvedTag[] {
+  const tags: ResolvedTag[] = []
+  const tree = mdxParser.parse(body)
+
+  visit(tree, (node) => {
+    if ((node.type !== "mdxJsxFlowElement" && node.type !== "mdxJsxTextElement") || node.name !== "Project") {
+      return
+    }
+
+    invariant(
+      node.attributes.every((attribute) => attribute.type === "mdxJsxAttribute"),
+      `Project props must be explicit, without spreads, in ${source}`,
+    )
+    const stacks = node.attributes.filter((attribute) => attribute.type === "mdxJsxAttribute" && attribute.name === "stack")
+    invariant(stacks.length <= 1, `Duplicate Project stack in ${source}`)
+    const stack = stacks[0]
+    if (!stack || stack.type !== "mdxJsxAttribute") {
+      return
+    }
+
+    const value = stack.value
+    const statement = typeof value === "object" && value ? value.data?.estree?.body[0] : undefined
+    const expression = statement?.type === "ExpressionStatement" ? statement.expression : undefined
+    invariant(expression?.type === "ArrayExpression", `Project stack must be a literal string array in ${source}`)
+    const labels = expression.elements.map((element) => {
+      invariant(element?.type === "Literal" && typeof element.value === "string",
+        `Project stack must contain only literal strings in ${source}`)
+      return element.value
+    })
+    tags.push(...normalizeTags(labels))
+  })
+
+  return tags
+}
+
 export function getTags(): ResolvedTag[] {
   const tags = new Map<string, ResolvedTag>()
+  const addTag = (tag: ResolvedTag) => {
+    const existing = tags.get(tag.slug)
+    invariant(
+      !existing || existing.label === tag.label,
+      `Tag labels ${JSON.stringify(existing?.label)} and ${JSON.stringify(tag.label)} share slug ${tag.slug}`,
+    )
+    if (!existing) {
+      tags.set(tag.slug, tag)
+    }
+  }
 
   collections.forEach((collection) => {
-    getCollectionEntries(collection).forEach((entry) => {
-      entry.tags.forEach((tag) => {
-        const existing = tags.get(tag.slug)
-        invariant(
-          !existing || existing.label === tag.label,
-          `Tag labels ${JSON.stringify(existing?.label)} and ${JSON.stringify(tag.label)} share slug ${tag.slug}`,
-        )
-        if (!existing) {
-          tags.set(tag.slug, tag)
-        }
-      })
-    })
+    getCollectionEntries(collection).forEach((entry) => entry.tags.forEach(addTag))
   })
+
+  // Discover declarations before rendering; examples in fenced code are not JSX nodes.
+  for (const directory of ["pages", ...collections]) {
+    listMdxFiles(path.join(contentRoot, directory)).forEach((filePath) => {
+      const { data, content } = matter(fs.readFileSync(filePath, "utf8"))
+      if (normalizeMetadata(data, filePath).published) {
+        getDeclaredProjectTags(content, filePath).forEach(addTag)
+      }
+    })
+  }
 
   return Array.from(tags.values()).sort((a, b) => a.label.localeCompare(b.label))
 }
