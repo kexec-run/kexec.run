@@ -1,27 +1,25 @@
 # Architecture
 
-The site is a filesystem-driven MDX publishing system built with Next.js App Router, React Server Components, and static export. MDX controls site composition and publication. TypeScript provides discovery, validation, resolution, and rendering.
+The build starts at `content/shell/index.mdx`, follows its MDX declarations, and generates routes for the connected content. Next.js renders those routes to static files in `out/`.
 
-## Authority and boundaries
+## Who controls what
 
-| Layer | Owns |
+| Part | Responsibility |
 | --- | --- |
-| Filesystem | Collection membership, hierarchy, and URL slugs |
-| MDX | Shell composition, navigation, references, index content, and publication intent |
-| `src/lib/content.ts` | Filesystem access, declaration parsing, reachability, metadata, sorting, and route validation |
-| Server components and MDX adapters | Resolve declarations before rendering |
-| React renderers and CSS | Presentation and visual language |
+| Files and folders | Collection membership, nested paths, and URL slugs |
+| MDX | Shell placement, navigation, page content, section order, and publication connections |
+| `src/lib/content.ts` | Filesystem access, path resolution, discovery, validation, metadata, sorting, and route/tag generation |
+| Server components and MDX adapters | Turn declarations into resolved data and select the appropriate renderer |
+| Presentational components | Render semantic HTML from resolved props |
+| CSS | Fonts, colors, spacing, and responsive layout |
 
-`content/shell/index.mdx` is the application's authored entry point. There is no collection-name registry or collection-specific route implementation.
+Code loads one authored entry point. It supplies reusable components and rules; MDX selects the site's content. There is no collection-name registry or route implementation for each collection.
 
-```text
-content/shell/index.mdx
-  -> shell/header.mdx -> declared pages and collections
-  -> pages/home.mdx   -> included pages and collections
-  -> shell/footer.mdx -> included pages and collections
-```
+Code defines the `Page`, `Collection`, and `Project` components, the supported shell slots, and reserved routes. Some presentation conventions also remain in code: project rows omit dates, and tag detail pages list posts only.
 
-The shell uses the existing `Page` declaration with a `slot` property:
+## Shell and rendering
+
+`content/shell/index.mdx` contains:
 
 ```mdx
 <Page path="./header" slot="header" />
@@ -31,56 +29,62 @@ The shell uses the existing `Page` declaration with a `slot` property:
 <Page path="./footer" slot="footer" />
 ```
 
-Relative paths resolve from the declaring document. Bare `Page` paths retain their `content/pages/` base; bare `Collection` paths retain their `content/` base. Discovery and rendering share this resolver, which rejects paths escaping `content/`.
+The main slot selects the homepage. At other URLs, that position renders the current route. Exactly one main slot is required. Header and footer slots are optional, and no slot can appear twice. Documents assigned to header and footer slots are shell fragments and do not get standalone routes.
 
-The main slot selects the homepage. At other URLs its position renders the current route. Header and footer slots are optional; exactly one main slot is required. Slot names cannot be duplicated. Header and footer documents are shell fragments, not standalone routes.
+`SiteShell` renders the shell and selects the context for each slot. In the header, `Page` and `Collection` render navigation links. In ordinary content, `Page` includes another document and `Collection` lists entries. A declaration's `title` supplies the navigation label; otherwise the destination's metadata supplies it.
 
-Inside the header, `Page` and `Collection` declarations render navigation links. In ordinary content, `Page` includes a document and `Collection` renders entries. The shell explicitly establishes this navigation context. `title` supplies a navigation label; otherwise the destination's metadata supplies it.
+`ContentDocument` imports the MDX source and binds its declarations to that source file. Discovery and rendering use the same `resolveContentPath()` function:
 
-## Discovery and publication
+| Declaration | Base directory |
+| --- | --- |
+| `Page` with a bare path such as `about` | `content/pages/` |
+| `Collection` with a bare path such as `notes` | `content/` |
+| Either component with `./` or `../` | Directory of the declaring document |
 
-Before rendering, `discoverSite()` parses reachable MDX with the MDX syntax tree. It follows explicit, literal `Page` and `Collection` paths from the shell without executing authored expressions. Fenced examples and inline code create no references. Spreads and computed paths are rejected.
+Paths omit the extension and cannot escape `content/`.
 
-A reference to a collection publishes its `index.mdx` and published entries. It also discovers references within those documents. A collection's own index can list that collection without creating a recursive render: the collection adapter renders links, not the index document again.
+## Discover connected content
 
-Only reachable, published documents contribute routes and tags. Files left unconnected on disk are drafts. Removing the last reference removes their generated URLs on the next build and deployment. A reference from the homepage, footer, or another reachable document keeps content published even if its header declaration is removed. Plain Markdown links and `Project href` values are links, not publication declarations.
+`discoverSite()` parses MDX into a syntax tree before rendering. It follows literal `Page` and `Collection` paths without evaluating their expressions. Computed paths and prop spreads are rejected. Fenced examples and inline code create no connections.
 
-`published: false` stops traversal through a document. On a collection index it blocks that collection and its implicitly discovered descendants. A separate explicit reference to a nested section can publish that section independently.
+A collection declaration connects its index and published entries. Discovery follows declarations inside those documents too. A collection index can list its own collection: the list renders links to entries, so it does not recursively render the index.
 
-Missing collection folders are skipped. An existing referenced folder must contain `index.mdx`. Missing referenced pages, circular page references, invalid declaration paths, malformed metadata, and URL collisions fail the build. `/tags` and its descendants are reserved infrastructure routes.
+Only reachable, published documents contribute authored routes and tags. Here, reachable means connected to the shell through `Page` or `Collection` declarations, including entries discovered through a collection. Plain Markdown links and `Project href` values do not publish their targets.
 
-## Hierarchy and routing
+Removing a document's last connection removes its URLs on the next build and deployment. A connection from the homepage, footer, or another published document keeps it published even if its header link is removed.
 
-```text
-content/pages/home.mdx                -> / (selected by the shell main slot)
-content/pages/about.mdx               -> /about when referenced
-content/notes/index.mdx               -> /notes when connected
-content/notes/example.mdx             -> /notes/example
-content/posts/linux/optimg.mdx        -> /posts/linux/optimg
-content/notes/topic/index.mdx         -> /notes/topic
-content/notes/topic/example.mdx       -> /notes/topic/example
-```
+`published: false` stops traversal through a document. On a collection index, it blocks that collection and its implicitly discovered descendants. A separate explicit declaration can connect a nested section independently. Unconnected files remain on disk as drafts.
 
-Nested directories without an index preserve entry hierarchy. A nested `index.mdx` starts its own section and publication boundary. Index documents are never listed as entries. A collection lists entries up to nested section boundaries; each nested section owns its own list.
+## Generate routes from folders
 
-`src/app/[...slug]/page.tsx` generates all discovered content URLs. `src/app/page.tsx` renders the discovered root page. `ContentDocument` imports the resolved MDX source; route policy and filesystem access stay in the content library.
+| Source, when connected | URL |
+| --- | --- |
+| Shell main page | `/` |
+| `content/pages/about.mdx` | `/about` |
+| `content/notes/index.mdx` | `/notes` |
+| `content/notes/example.mdx` | `/notes/example` |
+| `content/posts/linux/optimg.mdx` | `/posts/linux/optimg` |
+| `content/notes/topic/index.mdx` | `/notes/topic` |
+| `content/notes/topic/example.mdx` | `/notes/topic/example` |
 
-## Collections and metadata
+Folders without an index preserve nested entry paths. A nested `index.mdx` starts a separate section with its own publication flag. Collection lists stop at those section boundaries; each section lists its own entries. Index files are excluded from entry lists.
 
-Every collection owns its landing page in its folder. Frontmatter supplies the index heading, description, and SEO metadata; the body supplies composition. Posts use an automatic collection list. Projects retain their curated `Project` declarations in `content/projects/index.mdx`.
+`src/app/[...slug]/page.tsx` generates discovered content routes. `src/app/page.tsx` renders the discovered homepage. Tag routes remain separate under `/tags` and `/tags/[tag]`.
 
-Entries sort newest first, with title as the tie breaker. `published` defaults to true. `showOnHomepage: false` hides an entry only from declarations using `homepage`; it does not remove the detail route. Homepage filtering happens before the limit and applies to every collection.
+## Resolve metadata and lists
 
-## Tags
+Index frontmatter supplies the landing page heading, description, and SEO metadata. Its MDX body supplies the content below them. The projects index uses curated `Project` declarations; notes and posts use `Collection` lists.
 
-Global tags come from frontmatter and literal `Project stack` declarations in reachable, published documents, including shell fragments and indexes. Tag labels and slugs are normalized in the content library. Conflicting labels sharing a slug fail clearly. Computed project stacks and prop spreads are rejected; examples in code fences are ignored.
+Entries sort by date, newest first, then by title. Undated entries sort after dated entries. `published` defaults to true. A declaration using `homepage` excludes entries with `showOnHomepage: false` before applying its limit. That filtering applies to every collection and does not remove detail routes.
 
-The existing tag detail experience still lists posts. Tags declared only by projects or notes have a valid empty posts state. Removing a section's final reference also removes tags used only by that section.
+Tags come from frontmatter and literal `Project stack` declarations in reachable, published documents, including indexes and shell fragments. The content library normalizes labels, slugs, and links. Conflicting labels with the same slug fail validation. Computed stacks and project prop spreads are rejected; code examples create no tags.
 
-## Verification and tradeoffs
+Tag detail pages list posts only. A tag used solely by a project or note has a valid empty posts state. Removing a section's final connection also removes tags used only by that section.
 
-Run `npm test`, `npm run typecheck`, and `npm run build`. The build generates the static `out/` artifact; publishing changes requires rebuilding and deploying that artifact.
+## Validate the build
 
-Discovery currently scans reachable documents on demand during the build. This favors correctness without a stale process-wide cache. A generated manifest or build-scoped cache can be added if content growth makes it necessary. Dynamic MDX imports are validated by the production static export.
+Missing collection folders are skipped. A referenced folder that exists must have an `index.mdx`. Missing referenced pages, circular page references, malformed metadata, invalid paths, duplicate shell slots, and URL collisions fail with a descriptive content invariant error. `pages` and `shell` are reserved collection roots; `/tags` and its descendants are reserved routes.
 
-See [editing.md](./editing.md), [styling.md](./styling.md), and [deployment.md](./deployment.md).
+Run `npm test`, `npm run typecheck`, and `npm run build` to check the implementation and static export. The tests cover publication connections, drafts, nested sections, relative paths, and tag discovery.
+
+Discovery currently rereads reachable documents during the build. If this becomes slow, a build-scoped cache or generated manifest can reduce repeated work. Dynamic MDX imports are checked by the production build.

@@ -1,74 +1,74 @@
-# kexec-run
+# kexec.run
 
-Filesystem-driven MDX publishing system built with Next.js App Router, React Server Components, and static export.
+A personal website built with Next.js App Router, React Server Components, and MDX. Files define the URL hierarchy. MDX connects the pages and collections that get published. The build exports static files to `out/`.
 
-## Shape
-
-```text
-content/
-  shell/     index.mdx composition, header.mdx, and footer.mdx
-  pages/     homepage and included pages
-  notes/     notes index and entries
-  posts/     blog index and entries
-  projects/  curated index and project detail pages
-
-src/
-  app/        routes and parent RSC orchestration
-  lib/        content parsing, resolution, fonts, MDX helpers
-  components/ renderers and MDX adapters
-  styles/     visual system
-```
-
-## Boundaries
-
-- Filesystem owns topology.
-- Only content reachable from `content/shell/index.mdx` is published.
-- MDX owns declaration and composition.
-- Parent RSCs and adapters own resolution.
-- `src/lib/content.ts` owns parsing, normalization, sorting, and route derivation.
-- React components render normalized props.
-- CSS owns visual language.
-
-## Content
-
-Shell composition lives in `content/shell/index.mdx`; navigation is authored in `content/shell/header.mdx`. Homepage composition stays in `content/pages/home.mdx`.
-
-Connect a new folder with `<Collection path="notes" title="notes" />`. Its `index.mdx` supplies the landing page metadata and composition. Removing its final reachable reference removes its exported URLs on rebuild. No collection registry or per-collection route code is needed.
-
-Posts live under `content/posts` and support nested routes:
-
-```text
-content/posts/linux/optimg.mdx
--> /posts/linux/optimg
-```
-
-Projects have two surfaces:
-
-- `content/projects/index.mdx` for the curated project index.
-- `content/projects/**/*.mdx` for project detail pages.
-
-The homepage discovers projects from `content/projects/**/*.mdx` and shows their titles as links to the detail pages, alongside their tags. A project added only to the curated index will not appear on the homepage. Blog rows also show dates; homepage project rows omit them.
-
-Set `showOnHomepage: false` in a project's frontmatter to hide it from the homepage only. It defaults to `true` and does not remove the detail page, tags, or curated `/projects` entry. `published: false` still excludes the detail file from collection discovery and generated detail routes.
-
-Footer links live in `content/shell/footer.mdx`.
-
-Tags are discovered from reachable, published frontmatter and literal `<Project stack={["python", "javascript"]}>` declarations in reachable MDX, including collection indexes and shell fragments. Stack tags do not require a project detail page. Keep stacks as explicit arrays of strings; computed values and prop spreads are rejected during the build.
-
-## Commands
+## Run locally
 
 ```bash
+npm install
 npm run dev
-npm run typecheck
+```
+
+Before deploying:
+
+```bash
 npm test
+npm run typecheck
 npm run build
 ```
 
-Static export output is generated in `out/`.
+## Edit the site
 
-## Docs
+Code loads one authored entry point: `content/shell/index.mdx`.
 
-- [Architecture](docs/arch.md)
-- [Editing](docs/editing.md)
-- [Styling](docs/styling.md)
-- [Deployment](docs/deployment.md)
+```text
+content/
+  shell/
+    index.mdx     places the header, current page, and footer
+    header.mdx    navigation links and their order
+    footer.mdx    footer content
+  pages/
+    home.mdx      homepage sections and their order
+    about.mdx     content included on the homepage
+  notes/
+    index.mdx     notes heading, description, and entry list
+    *.mdx         individual notes
+  posts/
+    index.mdx     blog index
+    **/*.mdx     individual posts, including nested folders
+  projects/
+    index.mdx     curated project list
+    **/*.mdx     project detail pages
+```
+
+Each collection's `index.mdx` is its landing page and is excluded from entry lists. The homepage currently shows about, two recent notes, three blog posts, then up to four projects.
+
+To add a section, create its folder and index, then connect it from a reachable MDX document:
+
+```mdx
+<Collection path="notes" title="notes" />
+```
+
+In the header this renders a navigation link. In page content it renders an entry list. Existing bare collection paths start at `content/`; relative paths start at the declaring file. For example, the shell header uses `path="../notes"`.
+
+Only connected, published content gets authored page URLs. Removing its last reference removes those URLs on the next build and deployment. A homepage reference keeps a collection published even after its header link is removed. `published: false` excludes a document explicitly.
+
+See [Editing](docs/editing.md) for adding notes, formatting text, and publishing sections.
+
+## Keep the boundaries clear
+
+MDX chooses what the site contains, how sections connect, and their order. Adding a collection requires no TypeScript registration or new route file.
+
+`src/lib/content.ts` reads files, follows declarations, validates metadata, sorts entries, and determines routes and tags. Server components and MDX adapters use those results. Presentational components render the resolved data; CSS controls their appearance.
+
+Code still defines the available MDX components, shell slots, and reserved routes such as `/tags`. The [architecture doc](docs/arch.md) explains those responsibilities and the publication rules.
+
+## Reading and layout
+
+The site uses **Atkinson Hyperlegible** for text and **Atkinson Hyperlegible Mono** for code. They were chosen to make reading and scanning faster and easier, particularly when distinguishing similar characters.
+
+Headings and entry titles lead the page. Dates and tags use quieter text. Notes show dates and titles without requiring tags; titles use the remaining row width. See [Styling](docs/styling.md) for fonts, colors, and layout rules.
+
+## Deploy
+
+`npm run build` writes the static site to `out/`. The repository's `wrangler.jsonc` configures Cloudflare Worker assets to serve that directory. See [Deployment](docs/deployment.md) for configuration, preview commands, and checks.

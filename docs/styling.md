@@ -1,107 +1,77 @@
 # Styling
 
-This doc covers visual changes: shell renderers, typography, CSS tokens, and code styling.
+CSS controls fonts, colors, spacing, and responsive layout. MDX controls the content and its order. Change the homepage sequence in `content/pages/home.mdx`; change how its rows look in `src/styles/prose.css`.
 
-## Shell Navigation
+## Fonts and reading
 
-Header navigation is global application shell, not homepage composition.
+The site uses **Atkinson Hyperlegible** for body text and **Atkinson Hyperlegible Mono** for code. These fonts were chosen to make reading and scanning faster and easier. Distinguishing similar characters is a priority, especially in technical writing and code.
 
-- `src/app/layout.tsx` declares global navigation intent.
-- `src/app/layout.tsx` resolves collection-backed nav sections before rendering shell components.
-- `src/components/layout/SiteHeader.tsx` receives resolved sections only.
-- `src/components/layout/Header.tsx` is the pure nav renderer.
-- `<Header />` is not registered as an MDX component.
+`src/lib/fonts.ts` loads the fonts with `next/font/google`. The body font uses weights 400 and 700; the code font uses a variable weight. Both use `display: "swap"`.
 
-Footer follows the same shell naming, but its content can be authored:
+`src/app/layout.tsx` applies the loaded font classes and CSS variables. `src/styles/theme.css` maps them to `--font-body` and `--font-code`. Normal text uses the body font. Inline code, fenced code, commands, and keyboard input use the code font.
 
-- `src/components/layout/SiteFooter.tsx` is the shell footer adapter.
-- `src/components/layout/Footer.tsx` is the presentational footer renderer.
-- `content/shell/footer.mdx` is allowed as authored footer content, because footer copy and links may change without becoming application logic.
+## Visual hierarchy
 
-## Renderer Boundaries
+The homepage shows about, notes, blog, and projects in that order. Notes show at most two entries, blog at most three, and projects at most four. Those choices live in MDX.
 
-React renderers own presentation from normalized props.
+| Element | Treatment |
+| --- | --- |
+| Page heading | Largest heading; an index gets it from frontmatter |
+| Section heading | Labels a collection with consistent spacing above its rows |
+| Entry title | Accent link, larger than its date and tags |
+| Date and tags | Smaller, muted text |
+| Footer | Muted text separated from the main content by a border |
 
-They may:
+Rows use dividers and shared alignment to make lists easy to scan. Notes can omit tags; their dates and titles still provide structure. Titles in rows without tags use the remaining width. Titles in tagged rows have a `36ch` maximum width. Titles wrap instead of being truncated.
 
-- render semantic HTML
-- apply class names
-- control spacing/layout through CSS hooks
-- display normalized entries, sections, projects, and tags
+Project rows omit dates. Homepage tags use outline-only chips; curated project stack tags use stronger boxes. Tags support the title without competing with it.
 
-They must not:
+At widths of 640px and below, entry rows stack into one column and tags align left. Rows without tags follow the same mobile layout.
 
-- scan the filesystem
-- resolve collections
-- normalize metadata
-- construct tag route policy from raw labels
-- perform skip behavior for missing content
+## Where styles live
 
-## Theme
+| File | Contents |
+| --- | --- |
+| `src/styles/theme.css` | Color tokens, font variables, and global defaults |
+| `src/styles/prose.css` | Shell, prose, lists, project rows, callouts, and responsive rules |
+| `src/styles/code.css` | Inline and fenced code styling |
+| `src/app/globals.css` | Imports the style files |
 
-CSS owns visual presentation.
+Current color values:
 
-Current theme:
+| Use | Value |
+| --- | --- |
+| Background | `#111` |
+| Body text | `#d1d5db` |
+| Headings | `#fff` |
+| Secondary text | `#818895` |
+| Accent | `#ff6b35` |
 
-- Background: `#111`
-- Foreground: `#d1d5db`
-- Heading text: `#fff`
-- Secondary text: `#818895`
-- Accent: `#ff6b35`
-- Body font: Atkinson Hyperlegible
-- Code font: Atkinson Hyperlegible Mono
+Keep shared values in CSS tokens. Presentational components provide semantic HTML and class names; MDX declarations do not need styling props to add or reorder content.
 
-The typography system uses Atkinson Hyperlegible and Atkinson Hyperlegible Mono for stronger character differentiation and easier visual parsing.
+## Shell and component boundaries
 
-It prioritizes recognizability and scanability over visual uniformity, reducing fatigue during prolonged reading.
+`content/shell/index.mdx` places the header, current page, and footer. `content/shell/header.mdx` controls navigation labels and order. `content/shell/footer.mdx` controls footer content.
 
-Font loading lives in `src/lib/fonts.ts`. CSS owns where loaded fonts are applied through `--font-body` and `--font-code`.
+`src/components/layout/SiteShell.tsx` reads the shell through `ContentDocument` and selects how declarations render in each slot. It establishes the header's navigation context. `src/components/layout/Footer.tsx` supplies the footer's HTML wrapper. `layout.tsx` applies fonts and the outer container.
 
-Theme tokens live in `src/styles/theme.css`. Typography and component classes live in `src/styles/prose.css` and `src/styles/code.css`.
+MDX adapters and server components may call the content library to resolve declarations and skip unavailable content. Presentational components such as `EntryList`, `EntryRow`, and `ProjectRow` receive resolved props. They render HTML and CSS hooks without reading files, resolving collections, or constructing tag URLs from raw labels.
 
-List metadata uses the secondary text token so dates, tags, and supporting navigation remain quieter than post and project titles.
+## Code blocks and images
 
-Entry titles use a `36ch` reading measure and wrap rather than ellipsize, preserving complete titles in index rows.
-
-Homepage entry tags use outline-only chips. Project index stack tags use slightly stronger boxed chips because they are part of the project row content, not just row metadata.
-
-## Typography
-
-Normal text uses `--font-body`.
-
-Code, commands, keyboard input, and preformatted blocks use `--font-code`.
-
-Fenced code blocks render as semantic Markdown HTML:
+Write normal Markdown fences for code. They render as semantic HTML:
 
 ```html
 <pre><code>...</code></pre>
 ```
 
-CSS targets `pre`, `pre code`, `code`, `kbd`, and `samp`, so inline code and fenced code blocks share the code font.
+CSS targets `pre`, `pre code`, `code`, `kbd`, and `samp`. Current code styling is CSS-only. If syntax highlighting is added, use the MDX build pipeline so authors can keep using normal fences.
 
-## Code Highlighting
+Store original static assets under `public/`. For example, `public/images/example.png` is served at `/images/example.png`. There is no separate `assets/` directory. If image optimization is added, keep originals in `public/` and generate optimized files during the build.
 
-The current baseline is CSS-only code styling.
+## Error page
 
-If syntax highlighting is added later, prefer build-time highlighting through MDX/rehype, such as Shiki or `rehype-pretty-code`.
-
-Avoid requiring authors to write custom code components for normal fenced code. Markdown fences should remain the authoring surface.
-
-## Static Assets
-
-Use `public/` for original/static site assets.
-
-`public/images/foo.png` is served as:
-
-```text
-/images/foo.png
-```
-
-The repo does not keep a separate `assets/` folder. If image optimization is added later, originals can stay in `public/` and generated optimized files can be emitted into the static output workflow.
-
-## Error Pages
-
-`src/app/not-found.tsx` owns the custom 404 surface. It uses the same site shell and prose styling as authored pages, with filesystem-oriented copy:
+`src/app/not-found.tsx` renders the 404 page inside the same shell and prose styles:
 
 ```text
 404
