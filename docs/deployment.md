@@ -54,4 +54,4 @@ Deploy the complete new export so hosting also removes obsolete files. Building 
 
 ## Keep the site static
 
-Filesystem reads belong in `src/lib/content.ts` and run during the build. Keep page rendering compatible with `output: "export"`: avoid request-time APIs, request-dependent route handlers, ISR, and dynamic image routes. Static assets are served from the exported files.
+Filesystem reads belong in `src/lib/content/filesystem.ts` and run during the build. Pages and components use the public API in `src/lib/content.ts`; they do not read content files directly. Keep page rendering compatible with `output: "export"`: avoid request-time APIs, request-dependent route handlers, ISR, and dynamic image routes. Static assets are served from the exported files.

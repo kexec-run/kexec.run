@@ -59,7 +59,7 @@ See [Editing](docs/editing.md) for adding notes, formatting text, and publishing
 
 MDX chooses what the site contains, how sections connect, and their order. Adding a collection requires no TypeScript registration or new route file.
 
-`src/lib/content.ts` reads files, follows declarations, validates metadata, sorts entries, and determines routes and tags. Server components and MDX adapters use those results. Presentational components render the resolved data; CSS controls their appearance.
+`src/lib/content.ts` keeps the public imports stable and delegates to modules under `src/lib/content/`. Those modules separate file access, parsing, content rules, entry construction, discovery, and queries. Server components and MDX adapters use the resolved results. Presentational components render that data; CSS controls their appearance.
 
 Code still defines the available MDX components, shell slots, and reserved routes such as `/tags`. The [architecture doc](docs/arch.md) explains those responsibilities and the publication rules.
 

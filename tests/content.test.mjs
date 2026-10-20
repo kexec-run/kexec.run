@@ -264,3 +264,194 @@ test("shell folder resolves sibling fragments, parent paths, and legacy bare pat
     assert.throws(() => resolveContentPath("Page", "./header"), /declaring document/)
   })
 })
+
+test("public API retains exports, normalized results, excerpts, and missing values", async () => {
+  await withContent({ ...baseSite,
+    "pages/home.mdx": '<Page path="about" />\n\n<Collection path="posts" />',
+    "pages/about.mdx": '---\ntitle: About me\ndescription: Profile\n---\nHello.',
+    "pages/draft.mdx": '---\npublished: false\n---\nDraft.',
+    "pages/orphan.mdx": '---\ntitle: Unconnected\n---\nOrphan.',
+    "posts/index.mdx": '---\ntitle: Journal\n---\n<Collection path="posts" />',
+    "posts/default.mdx": '# Heading\n\n<span />\n\nFirst useful line.\nSecond line.',
+    "posts/described.mdx": '---\ntitle: Described\ndescription: Authored excerpt\ntags: [Linux]\nstatus: active\n---\nBody.',
+    "posts/empty.mdx": '# Heading\n\n<span />',
+  }, (content) => {
+    assert.deepEqual(Object.keys(content).sort(), [
+      "discoverSite", "getCollectionEntries", "getContentRoute", "getContentStaticParams", "getDeclaredProjectTags",
+      "getEntry", "getPageMetadata", "getStaticParams", "getTaggedPosts", "getTags", "normalizeTags", "resolveCollection",
+      "resolveCollectionLink", "resolveContentPath", "resolvePage", "resolvePageLink", "resolveSections", "slugifyTag",
+    ].sort())
+    const defaults = { title: "Untitled", description: undefined, date: undefined, tags: undefined,
+      status: undefined, published: true, showOnHomepage: true }
+    assert.deepEqual(content.getEntry("posts", ["default"]), { collection: "posts", slug: ["default"],
+      href: "/posts/default", metadata: defaults, tags: [], excerpt: "First useful line." })
+    assert.equal(content.getEntry("posts", ["empty"]).excerpt, "")
+    assert.equal(content.getEntry("posts", ["described"]).excerpt, "Authored excerpt")
+    assert.deepEqual(content.getPageMetadata("about"), { ...defaults, title: "About me", description: "Profile" })
+    assert.deepEqual(content.resolvePage({ path: "about" }), { path: "pages/about", metadata: content.getPageMetadata("about") })
+    assert.equal(content.getPageMetadata("orphan").title, "Unconnected")
+    assert.deepEqual(content.resolvePage({ path: "orphan" }), { path: "pages/orphan", metadata: content.getPageMetadata("orphan") })
+    assert.equal(content.resolvePageLink({ path: "orphan" }), null)
+    assert.equal(content.getPageMetadata("draft").published, false)
+    assert.equal(content.resolvePage({ path: "missing" }), null)
+    assert.equal(content.resolvePage({ path: "draft" }), null)
+    assert.throws(() => content.getPageMetadata("missing"), /Missing required page.*missing\.mdx/)
+    assert.equal(content.getEntry("posts", ["missing"]), null)
+    assert.equal(content.getContentRoute(["missing"]), null)
+    assert.equal(content.resolvePageLink({ path: "missing" }), null)
+    assert.equal(content.resolveCollectionLink({ path: "missing" }), null)
+    assert.equal(content.resolveCollection({ path: "missing" }), null)
+    assert.equal(content.resolveCollection({ path: "../posts" }), null)
+    assert.deepEqual(content.resolvePageLink({ path: "about" }), { href: "/about", label: "About me" })
+    assert.deepEqual(content.resolvePageLink({ path: "about", title: "Profile" }), { href: "/about", label: "Profile" })
+    assert.deepEqual(content.resolveCollectionLink({ path: "posts" }), { href: "/posts", label: "Journal" })
+    assert.deepEqual(content.resolveCollectionLink({ path: "posts", title: "blog" }), { href: "/posts", label: "blog" })
+    assert.deepEqual(content.resolveCollection({ path: "posts", title: "Latest", limit: 1 }), {
+      entries: [content.getEntry("posts", ["described"])], title: "Latest", viewAll: { href: "/posts", label: "all posts" },
+    })
+    assert.deepEqual(content.resolveSections([{ path: "posts", label: "Writing" }, { path: "missing", label: "Missing" },
+      { path: "../posts", label: "Invalid" }]), [{ label: "Writing", href: "/posts", count: 3 }])
+    assert.deepEqual(content.getStaticParams("posts"), [{ slug: ["described"] }, { slug: ["default"] }, { slug: ["empty"] }])
+    assert.deepEqual(content.getContentRoute([]), { source: "pages/home", href: "/", metadata: defaults, kind: "page" })
+    assert.deepEqual(content.getContentStaticParams(), [{ slug: ["about"] }, { slug: ["posts"] },
+      { slug: ["posts", "described"] }, { slug: ["posts", "default"] }, { slug: ["posts", "empty"] }])
+    assert.deepEqual(content.getTaggedPosts("linux").map((entry) => entry.href), ["/posts/described"])
+    assert.deepEqual(content.getTaggedPosts("absent"), [])
+    assert.equal(content.slugifyTag("  Next.js! "), "next-js")
+    assert.deepEqual(content.normalizeTags(undefined), [])
+    assert.deepEqual(content.normalizeTags(["!!!", "Linux"]), [{ label: "Linux", slug: "linux", href: "/tags/linux" }])
+  })
+})
+
+test("lists preserve descending dates, title ties, epoch-zero fallback, and limit validation", async () => {
+  await withContent({ ...baseSite,
+    "pages/home.mdx": '<Collection path="notes" />',
+    "notes/index.mdx": 'Notes.',
+    "notes/new-z.mdx": '---\ntitle: Zulu\ndate: "2026-10-20"\n---\nNew.',
+    "notes/new-a.mdx": '---\ntitle: Alpha\ndate: "2026-10-20"\n---\nNew.',
+    "notes/epoch.mdx": '---\ntitle: Alpha epoch\ndate: "1970-01-01T00:00:00Z"\n---\nEpoch.',
+    "notes/undated.mdx": '---\ntitle: Beta undated\n---\nUndated.',
+    "notes/old.mdx": '---\ntitle: Ancient\ndate: "1969-12-31"\n---\nOld.',
+  }, ({ getCollectionEntries, resolveCollection }) => {
+    assert.deepEqual(getCollectionEntries("notes").map((entry) => entry.slug.join("/")),
+      ["new-a", "new-z", "epoch", "undated", "old"])
+    assert.equal(resolveCollection({ path: "notes", limit: 0 }), null)
+    for (const limit of [-1, 1.5, "1", null, NaN, Infinity]) {
+      assert.throws(() => resolveCollection({ path: "notes", limit }), /Invalid collection limit for notes/)
+    }
+    for (const homepage of ["true", 1, null]) {
+      assert.throws(() => resolveCollection({ path: "notes", homepage }), /Invalid homepage flag for notes/)
+    }
+  })
+})
+
+test("duplicate references publish once and ordinary links do not activate collections", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/header.mdx": '<Collection path="notes" />\n\n<Collection path="notes" />',
+    "pages/home.mdx": '<Collection path="notes" />\n\n[Hidden](/hidden)\n\n<Project href="/hidden" />',
+    "hidden/index.mdx": '---\ntags: [hidden]\n---\nHidden.',
+    "hidden/example.mdx": 'Hidden entry.',
+  }, ({ discoverSite, getTags }) => {
+    const site = discoverSite()
+    assert.deepEqual(site.collections, ["notes"])
+    assert.deepEqual(site.routes.map((route) => route.href), ["/notes", "/notes/later", "/notes/first", "/"])
+    assert.equal(site.sources.filter((source) => source === "notes/index").length, 1)
+    assert.deepEqual(getTags().map((tag) => tag.slug), ["thinking"])
+  })
+})
+
+test("an explicitly connected child section publishes beneath a draft parent", async () => {
+  await withContent({ ...baseSite,
+    "pages/home.mdx": '<Collection path="notes" />\n\n<Collection path="notes/private/public" />',
+    "notes/index.mdx": 'Notes.',
+    "notes/private/index.mdx": '---\npublished: false\n---\nDraft.',
+    "notes/private/secret.mdx": '---\ntags: [secret]\n---\nSecret.',
+    "notes/private/public/index.mdx": 'Public child.',
+    "notes/private/public/example.mdx": '---\ntags: [visible]\n---\nExample.',
+  }, ({ discoverSite, getTags, getCollectionEntries }) => {
+    assert.deepEqual(discoverSite().routes.map((route) => route.href),
+      ["/", "/notes", "/notes/private/public", "/notes/private/public/example"])
+    assert.deepEqual(getCollectionEntries("notes"), [])
+    assert.deepEqual(getTags().map((tag) => tag.slug), ["visible"])
+  })
+})
+
+test("shell validation rejects missing, duplicate, invalid, and unpublished slots", async () => {
+  for (const [body, error] of [
+    ['<Page path="header" slot="header" />', /requires exactly one Page with slot=main/],
+    ['<Page path="home" slot="main" />\n\n<Page path="home" slot="main" />', /Duplicate shell slot main/],
+    [shell + '\n\n<Page path="header" slot="header" />', /Duplicate shell slot header/],
+    [shell + '\n\n<Page path="footer" slot="footer" />', /Duplicate shell slot footer/],
+    [shell + '\n\n<Page path="home" slot="aside" />', /Invalid shell slot in shell\/index/],
+    ['---\npublished: false\n---\n' + shell, /shell\/index\.mdx must be published/],
+    [shell + '\n\n<Collection path="notes" slot="header" />', /Invalid shell slot in shell\/index/],
+  ]) {
+    await withContent({ ...baseSite, "shell/index.mdx": body }, ({ discoverSite }) => assert.throws(discoverSite, error))
+  }
+  await withContent({ ...baseSite, "pages/home.mdx": '---\npublished: false\n---\nHome.' },
+    ({ discoverSite }) => assert.throws(discoverSite, /shell main page must be published/))
+  await withContent({ ...baseSite, "pages/home.mdx": '<Page path="other" slot="header" />' },
+    ({ discoverSite }) => assert.throws(discoverSite, /Invalid shell slot in pages\/home/))
+})
+
+test("malformed metadata and unsupported Markdown entries retain contextual errors", async () => {
+  for (const [field, value, error] of [
+    ["title", '" "', "Invalid title"], ["description", "42", "Invalid description"],
+    ["date", '"not-a-date"', "Invalid date"], ["date", "2026-10-20", "Invalid date"],
+    ["tags", "[1]", "Invalid tags"], ["status", "false", "Invalid status"],
+    ["published", '"false"', "Invalid published flag"],
+  ]) {
+    await withContent({ ...baseSite, "pages/home.mdx": `---\n${field}: ${value}\n---\nHome.` },
+      ({ discoverSite }) => assert.throws(discoverSite, new RegExp(`${error}.*pages/home\\.mdx`)))
+  }
+  await withContent({ ...baseSite, "pages/home.mdx": '<Collection path="notes" />',
+    "notes/index.mdx": 'Notes.', "notes/unsupported.md": 'Legacy.' },
+  ({ discoverSite }) => assert.throws(discoverSite, /Unsupported content extension.*unsupported\.md; use \.mdx/))
+})
+
+test("literal expressions and inline declarations connect content without evaluating computed paths", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/home.mdx": '<section>\n<Page path={"about"} />\n</section>\n\nText <Collection path={\'notes\'} /> text.\n\n`<Collection path="hidden" />`',
+    "pages/about.mdx": 'About.', "hidden/index.mdx": 'Hidden.',
+  }, ({ discoverSite }) => assert.deepEqual(discoverSite().routes.map((route) => route.href),
+    ["/", "/about", "/notes", "/notes/later", "/notes/first"]))
+  globalThis.contentPathExecuted = false
+  try {
+    for (const [body, error] of [
+      ['<Collection path={(globalThis.contentPathExecuted = true, "notes")} />', /Collection path must be a literal string in pages\/home/],
+      ['<Page path="about" path="other" />', /Duplicate Page path in pages\/home/],
+      ['<Collection path="notes" path="other" />', /Duplicate Collection path in pages\/home/],
+      ['<Page path="about" slot="header" slot="main" />', /Duplicate Page slot in pages\/home/],
+      ['<Page />', /Missing Page path in pages\/home/],
+    ]) {
+      await withContent({ ...baseSite, "pages/home.mdx": body }, ({ discoverSite }) => assert.throws(discoverSite, error))
+    }
+    assert.equal(globalThis.contentPathExecuted, false)
+  } finally {
+    delete globalThis.contentPathExecuted
+  }
+})
+
+test("simultaneously live fixture roots remain independent across A to B to A queries", async () => {
+  const fixture = (name) => ({ ...baseSite,
+    "pages/home.mdx": `<Collection path="${name}" />`,
+    [`${name}/index.mdx`]: name,
+    [`${name}/entry.mdx`]: `---\ntitle: ${name}\ntags: [${name}]\n---\n${name}.`,
+  })
+  await withContent(fixture("alpha"), async (a) => {
+    const checkA = () => {
+      assert.deepEqual(a.discoverSite().routes.map((route) => route.href), ["/", "/alpha", "/alpha/entry"])
+      assert.deepEqual(a.getTags().map((tag) => tag.slug), ["alpha"])
+      assert.deepEqual(a.getStaticParams("alpha"), [{ slug: ["entry"] }])
+      assert.deepEqual(a.getCollectionEntries("beta"), [])
+    }
+    checkA()
+    await withContent(fixture("beta"), (b) => {
+      assert.deepEqual(b.discoverSite().routes.map((route) => route.href), ["/", "/beta", "/beta/entry"])
+      assert.deepEqual(b.getTags().map((tag) => tag.slug), ["beta"])
+      assert.deepEqual(b.getCollectionEntries("alpha"), [])
+      checkA()
+    })
+    checkA()
+  })
+})

@@ -8,7 +8,8 @@ The build starts at `content/shell/index.mdx`, follows its MDX declarations, and
 | --- | --- |
 | Files and folders | Collection membership, nested paths, and URL slugs |
 | MDX | Shell placement, navigation, page content, section order, and publication connections |
-| `src/lib/content.ts` | Filesystem access, path resolution, discovery, validation, metadata, sorting, and route/tag generation |
+| `src/lib/content.ts` | Stable public API and content-root selection |
+| `src/lib/content/` | File access, parsing, content rules, entry construction, discovery, and queries |
 | Server components and MDX adapters | Turn declarations into resolved data and select the appropriate renderer |
 | Presentational components | Render semantic HTML from resolved props |
 | CSS | Fonts, colors, spacing, and responsive layout |
@@ -16,6 +17,25 @@ The build starts at `content/shell/index.mdx`, follows its MDX declarations, and
 Code loads one authored entry point. It supplies reusable components and rules; MDX selects the site's content. There is no collection-name registry or route implementation for each collection.
 
 Code defines the `Page`, `Collection`, and `Project` components, the supported shell slots, and reserved routes. Some presentation conventions also remain in code: project rows omit dates, and tag detail pages list posts only.
+
+## Content library boundaries
+
+Application code and tests continue importing from `src/lib/content.ts`. It keeps the existing exports and captures the `content/` directory from `process.cwd()` when the module loads. It passes that root to internal functions, so changing the working directory later does not redirect an existing import to another site's content.
+
+The implementation lives under `src/lib/content/`:
+
+| Module | Responsibility |
+| --- | --- |
+| `rules.ts` | Pure path resolution, metadata and tag normalization, excerpt rules, and invariant errors |
+| `parsing.ts` | Parse frontmatter and literal MDX declarations without reading files or evaluating expressions |
+| `filesystem.ts` | Read documents, check existence, and enumerate entries and nested sections |
+| `entries.ts` | Construct normalized entries, apply individual publication flags, and sort entries |
+| `discovery.ts` | Follow shell connections, enforce publication and shell-slot rules, and validate routes |
+| `queries.ts` | Resolve pages, lists, navigation, routes, and tags using the lower-level modules |
+
+Only `filesystem.ts` accesses the filesystem. Reading a file does not publish it: discovery decides which documents are reachable. Queries use discovery results and the file-reading and entry functions; discovery never calls queries. Internal modules do not import the public entry point or capture their own content roots. There is no shared content cache.
+
+Runtime imports between these TypeScript modules include `.ts` extensions so Node can run the tests with type stripping. TypeScript permits those imports through `allowImportingTsExtensions` with `noEmit`.
 
 ## Shell and rendering
 
@@ -85,6 +105,6 @@ Tag detail pages list posts only. A tag used solely by a project or note has a v
 
 Missing collection folders are skipped. A referenced folder that exists must have an `index.mdx`. Missing referenced pages, circular page references, malformed metadata, invalid paths, duplicate shell slots, and URL collisions fail with a descriptive content invariant error. `pages` and `shell` are reserved collection roots; `/tags` and its descendants are reserved routes.
 
-Run `npm test`, `npm run typecheck`, and `npm run build` to check the implementation and static export. The tests cover publication connections, drafts, nested sections, relative paths, and tag discovery.
+Run `npm test`, `npm run typecheck`, and `npm run build` to check the implementation and static export. Tests exercise the public API with temporary content folders, covering publication connections, drafts, nested sections, relative paths, parsing, validation, sorting, and tag discovery. Separate imported roots stay independent when the working directory changes.
 
 Discovery currently rereads reachable documents during the build. If this becomes slow, a build-scoped cache or generated manifest can reduce repeated work. Dynamic MDX imports are checked by the production build.
