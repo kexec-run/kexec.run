@@ -1,138 +1,86 @@
 # Architecture
 
-This site is a filesystem-driven MDX publishing system built with Next.js App Router, React Server Components, and static export.
+The site is a filesystem-driven MDX publishing system built with Next.js App Router, React Server Components, and static export. MDX controls site composition and publication. TypeScript provides discovery, validation, resolution, and rendering.
 
-For operational docs, see:
+## Authority and boundaries
 
-- [editing.md](./editing.md) - changing content
-- [styling.md](./styling.md) - changing visual presentation
-- [deployment.md](./deployment.md) - running, verifying, and deploying
+| Layer | Owns |
+| --- | --- |
+| Filesystem | Collection membership, hierarchy, and URL slugs |
+| MDX | Shell composition, navigation, references, index content, and publication intent |
+| `src/lib/content.ts` | Filesystem access, declaration parsing, reachability, metadata, sorting, and route validation |
+| Server components and MDX adapters | Resolve declarations before rendering |
+| React renderers and CSS | Presentation and visual language |
 
-## Runtime Baseline
-
-- Next.js `16.2.x`
-- React `19`
-- TypeScript `5.x`
-- App Router only under `src/app`
-- Static export with `output: "export"`
-- Cloudflare Pages serves the generated static output
-
-## Core Principle
-
-The system is intentionally layered. Each layer owns one class of responsibility, and cross-layer leakage should be treated as an architectural problem.
-
-| Layer | Owns | Must Not Own |
-| --- | --- | --- |
-| Filesystem | content topology | rendering |
-| MDX | declaration and composition | runtime orchestration |
-| Parent RSC / adapters | resolution and orchestration | visual language |
-| TypeScript lib | parsing and content semantics | UI rendering |
-| React renderers | presentation from normalized props | filesystem access |
-| CSS | visual language | content semantics |
-
-## Architecture Choices
-
-- The filesystem is the topology source.
-- MDX is the composition and authored-content surface.
-- TypeScript owns content resolution and normalization.
-- React renderers consume normalized props only.
-- CSS owns visual design.
-- Static export is the deployment model.
-- Runtime content loading is avoided.
-
-This keeps content git-native and makes deployment a static artifact.
-
-## Project Tree
-
-Generated artifacts such as `node_modules/`, `.next/`, `out/`, `.git/`, and `tsconfig.tsbuildinfo` are omitted.
+`content/shell/index.mdx` is the application's authored entry point. There is no collection-name registry or collection-specific route implementation.
 
 ```text
-.
-├── content/ - authored MDX content root
-│   ├── pages/ - authored pages and curated page fragments
-│   ├── posts/
-│   └── projects/
-├── docs/ - project documentation
-│   ├── arch.md
-│   ├── deployment.md
-│   ├── editing.md
-│   └── styling.md
-├── public/ - Next.js static asset input
-│   ├── favicon.ico
-│   ├── fonts/
-│   └── images/
-├── src/ - application source code
-│   ├── app/ - Next.js App Router routes
-│   │   ├── tags/ - global tag index and detail routes
-│   ├── components/ - React components
-│   ├── lib/ - content, font, and MDX runtime helpers
-│   ├── styles/ - CSS system
-│   └── types/ - shared TypeScript types
-├── mdx-components.tsx - root MDX component provider
-├── next.config.mjs - Next.js and MDX configuration
-├── package.json - scripts and dependencies
-└── tsconfig.json - TypeScript configuration
+content/shell/index.mdx
+  -> shell/header.mdx -> declared pages and collections
+  -> pages/home.mdx   -> included pages and collections
+  -> shell/footer.mdx -> included pages and collections
 ```
 
-## Data Flow
+The shell uses the existing `Page` declaration with a `slot` property:
+
+```mdx
+<Page path="./header" slot="header" />
+
+<Page path="../pages/home" slot="main" />
+
+<Page path="./footer" slot="footer" />
+```
+
+Relative paths resolve from the declaring document. Bare `Page` paths retain their `content/pages/` base; bare `Collection` paths retain their `content/` base. Discovery and rendering share this resolver, which rejects paths escaping `content/`.
+
+The main slot selects the homepage. At other URLs its position renders the current route. Header and footer slots are optional; exactly one main slot is required. Slot names cannot be duplicated. Header and footer documents are shell fragments, not standalone routes.
+
+Inside the header, `Page` and `Collection` declarations render navigation links. In ordinary content, `Page` includes a document and `Collection` renders entries. The shell explicitly establishes this navigation context. `title` supplies a navigation label; otherwise the destination's metadata supplies it.
+
+## Discovery and publication
+
+Before rendering, `discoverSite()` parses reachable MDX with the MDX syntax tree. It follows explicit, literal `Page` and `Collection` paths from the shell without executing authored expressions. Fenced examples and inline code create no references. Spreads and computed paths are rejected.
+
+A reference to a collection publishes its `index.mdx` and published entries. It also discovers references within those documents. A collection's own index can list that collection without creating a recursive render: the collection adapter renders links, not the index document again.
+
+Only reachable, published documents contribute routes and tags. Files left unconnected on disk are drafts. Removing the last reference removes their generated URLs on the next build and deployment. A reference from the homepage, footer, or another reachable document keeps content published even if its header declaration is removed. Plain Markdown links and `Project href` values are links, not publication declarations.
+
+`published: false` stops traversal through a document. On a collection index it blocks that collection and its implicitly discovered descendants. A separate explicit reference to a nested section can publish that section independently.
+
+Missing collection folders are skipped. An existing referenced folder must contain `index.mdx`. Missing referenced pages, circular page references, invalid declaration paths, malformed metadata, and URL collisions fail the build. `/tags` and its descendants are reserved infrastructure routes.
+
+## Hierarchy and routing
 
 ```text
-content/
--> src/lib/content.ts
--> normalized entries / resolved sections
--> parent RSC / declaration adapters
--> pure renderers
--> static output
+content/pages/home.mdx                -> / (selected by the shell main slot)
+content/pages/about.mdx               -> /about when referenced
+content/notes/index.mdx               -> /notes when connected
+content/notes/example.mdx             -> /notes/example
+content/posts/linux/optimg.mdx        -> /posts/linux/optimg
+content/notes/topic/index.mdx         -> /notes/topic
+content/notes/topic/example.mdx       -> /notes/topic/example
 ```
 
-`src/lib/content.ts` is the only place that scans the filesystem. It owns frontmatter parsing, metadata normalization, sorting, route derivation, collection resolution, page resolution, and tag resolution.
+Nested directories without an index preserve entry hierarchy. A nested `index.mdx` starts its own section and publication boundary. Index documents are never listed as entries. A collection lists entries up to nested section boundaries; each nested section owns its own list.
 
-## Invariants
+`src/app/[...slug]/page.tsx` generates all discovered content URLs. `src/app/page.tsx` renders the discovered root page. `ContentDocument` imports the resolved MDX source; route policy and filesystem access stay in the content library.
 
-These invariants describe the boundaries that should remain true as the site evolves.
+## Collections and metadata
 
-- T1: Content topology is defined by files and folders under `content/`; renderers must not encode slug or hierarchy rules.
-- T2: Filesystem access is centralized in `src/lib/content.ts`; React renderers and MDX-authored content must not read files directly.
-- T3: MDX declares composition intent only; it must not perform sorting, filtering, filesystem traversal, or runtime data loading.
-- T4: Parent RSCs and MDX adapters resolve declarations into normalized props before presentational renderers receive them.
-- T5: Presentational renderers consume normalized data only; they must not call filesystem helpers or construct route policy from raw content fields.
-- T6: Missing, empty, invalid, or unpublished collections are skipped before pure renderers receive props.
-- T7: Tag labels, slugs, and global hrefs are normalized in `src/lib/content.ts`; renderers must not construct tag routes.
-- T7a: Tag route generation comes from indexed frontmatter and static MDX project declarations, never renderer execution or render order.
-- T8: Shell navigation is global application shell; homepage MDX controls homepage content composition only.
-- T8a: Footer is global shell placement, but footer content may be authored through `content/pages/footer.mdx`; authored footer content must remain declarative and must not own shell mechanics.
-- T9: Project index ordering is curated by `content/pages/projects.mdx`; project detail topology is defined by `content/projects/**/*.mdx`.
-- T10: CSS owns visual language and font application; content and TypeScript layers must not encode visual styling.
-- T11: Static export must remain verifiable with `npm run build`; dynamic content patterns are acceptable only when the generated route set is proven at build time.
+Every collection owns its landing page in its folder. Frontmatter supplies the index heading, description, and SEO metadata; the body supplies composition. Posts use an automatic collection list. Projects retain their curated `Project` declarations in `content/projects/index.mdx`.
 
-
-## Content Validation
-
-The content resolver enforces data invariants during the build. Invalid metadata, non-boolean publication flags, invalid dates, duplicate route slugs, duplicate tag definitions, conflicting tag slugs, invalid collection limits, unsupported content extensions, and missing required page fragments fail with a descriptive [content invariant] error. Empty or unpublished collections remain valid and are skipped by the MDX adapter.
+Entries sort newest first, with title as the tie breaker. `published` defaults to true. `showOnHomepage: false` hides an entry only from declarations using `homepage`; it does not remove the detail route. Homepage filtering happens before the limit and applies to every collection.
 
 ## Tags
 
-Tags are global metadata, not post-owned routes.
+Global tags come from frontmatter and literal `Project stack` declarations in reachable, published documents, including shell fragments and indexes. Tag labels and slugs are normalized in the content library. Conflicting labels sharing a slug fail clearly. Computed project stacks and prop spreads are rejected; examples in code fences are ignored.
 
-```text
-/tags
-/tags/[tag]
-```
+The existing tag detail experience still lists posts. Tags declared only by projects or notes have a valid empty posts state. Removing a section's final reference also removes tags used only by that section.
 
-Tag labels, slugs, and hrefs are normalized in `src/lib/content.ts`.
+## Verification and tradeoffs
 
-```text
-next.js -> { label: "next.js", slug: "next-js", href: "/tags/next-js" }
-```
+Run `npm test`, `npm run typecheck`, and `npm run build`. The build generates the static `out/` artifact; publishing changes requires rebuilding and deploying that artifact.
 
-Tag route generation combines frontmatter in `content/posts` and `content/projects` with literal `Project` stack declarations in published MDX under `content/pages`, `content/posts`, and `content/projects`. `src/lib/content.ts` parses declarations at build time using the MDX syntax tree, without evaluating expressions or rendering components. Code-fence examples are ignored. Stack values must be literal arrays of strings, with no prop spreads. This lets curated GitHub-only projects declare tags without a detail page or duplicate metadata.
+Discovery currently scans reachable documents on demand during the build. This favors correctness without a stale process-wide cache. A generated manifest or build-scoped cache can be added if content growth makes it necessary. Dynamic MDX imports are validated by the production static export.
 
-`/tags/[tag]` lists posts only. Project stack tags link to global tag pages as shortcuts into related writing. If a tag exists only on a project and no post uses it yet, the tag page remains valid and renders an empty posts state instead of 404.
-
-Unknown tags that are not used anywhere still 404.
-
-## Known Tradeoffs
-
-- `src/lib/content.ts` scans files repeatedly during build. This is acceptable at the current content size; add memoization or a generated manifest only when build time makes it necessary.
-- Dynamic MDX imports are accepted because static export is verified with `npm run build`. If route discovery becomes fragile, replace them with a generated import manifest.
-- Global tag pages list posts only because the site is writing-centric. Projects remain discoverable through `/projects`, which is small enough to scan directly.
+See [editing.md](./editing.md), [styling.md](./styling.md), and [deployment.md](./deployment.md).

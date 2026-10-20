@@ -60,6 +60,6 @@ npm run typecheck
 npm run build
 ```
 
-The static export should generate routes for the home page, posts, nested posts, global tag pages, projects, and nested project detail pages.
+The static export generates routes discovered from `content/shell/index.mdx`, including connected collection indexes, published entries, and global tag pages. Removing a section's final MDX reference removes its generated URLs on the next build. Deploy the complete new export so removed files are removed from hosting too.
 
 Nonexistent static routes should fall through to the generated `404.html`, which is backed by `src/app/not-found.tsx`.

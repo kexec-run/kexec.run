@@ -1,23 +1,5 @@
-import type { Metadata } from "next"
-import HomeContent from "../../content/pages/home.mdx"
-import Prose from "@/components/ui/Prose"
-import { getPageMetadata } from "@/lib/content"
-
-export function generateMetadata(): Metadata {
-  const metadata = getPageMetadata("home")
-
-  return {
-    title: metadata.title,
-    description: metadata.description
-  }
-}
+import ContentPage from "@/components/content/ContentPage"
 
 export default function HomePage() {
-  return (
-    <main>
-      <Prose>
-        <HomeContent />
-      </Prose>
-    </main>
-  )
+  return <ContentPage slug={[]} />
 }

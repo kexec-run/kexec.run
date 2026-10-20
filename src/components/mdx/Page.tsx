@@ -1,14 +1,8 @@
+import ContentDocument from "@/components/content/ContentDocument"
 import { resolvePage } from "@/lib/content"
 import type { PageDeclaration } from "@/types/content"
 
-export default async function Page({ path }: PageDeclaration) {
-  const page = resolvePage({ path })
-
-  if (!page) {
-    return null
-  }
-
-  const { default: PageContent } = await import(`../../../content/pages/${page.path}.mdx`)
-
-  return <PageContent />
+export default async function Page(props: PageDeclaration) {
+  const page = resolvePage(props)
+  return page ? <ContentDocument source={page.path} /> : null
 }

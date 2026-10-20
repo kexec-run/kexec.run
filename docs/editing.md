@@ -1,214 +1,140 @@
 # Editing
 
-This doc covers content changes: pages, posts, projects, and tags.
+Content structure and publication are controlled by MDX under `content/`. Adding a section requires no TypeScript edits.
 
-## Content Topology
+## Shell and navigation
 
-The root `content/` directory is the source of authored MDX.
+`content/shell/index.mdx` connects global fragments and selects the homepage:
+
+```mdx
+<Page path="./header" slot="header" />
+
+<Page path="../pages/home" slot="main" />
+
+<Page path="./footer" slot="footer" />
+```
+
+Relative paths resolve from the declaring document: `./header` selects a sibling; `../pages/home` selects the homepage outside the shell folder. Bare `Page` paths still resolve under `content/pages/`, and bare `Collection` paths under `content/`. Paths cannot escape `content/`. Header declarations become navigation links:
+
+```mdx
+<Page path="home" title="home" />
+
+<Collection path="notes" title="notes" />
+
+<Collection path="posts" title="blog" />
+
+<Collection path="projects" title="projects" />
+```
+
+Edit `content/shell/header.mdx` to change navigation labels and order. `title` is optional and falls back to the destination's frontmatter title. The footer's Markdown links remain in `content/shell/footer.mdx`.
+
+## Add a collection
+
+Create a folder with its own index and entries:
 
 ```text
 content/
-  pages/
-  posts/
-  projects/
+  notes/
+    index.mdx
+    the-art-of-the-arrow.mdx
 ```
 
-No MDX should live under `src/`. The filesystem defines hierarchy, collection membership, slugs, and routes.
-
-Example:
-
-```text
-content/posts/linux/optimg.mdx
--> /posts/linux/optimg
-```
-
-Collection membership comes from the folder directly under `content/`.
-
-```text
-content/posts/...
--> posts collection
-
-content/projects/...
--> projects collection
-```
-
-Nested folders are preserved as URL hierarchy. There is no separate route registry to keep in sync.
-
-## Missing Or Empty Content
-
-Missing folders are not treated as fatal errors.
-
-For example, if `content/projects/` does not exist, collection resolution returns no entries instead of throwing. Empty collections and invalid collection declarations are skipped before presentational renderers receive props.
-
-This behavior keeps MDX declarations safe:
+`content/notes/index.mdx`:
 
 ```mdx
-<Collection path="posts" limit={3} />
+---
+title: "notes"
+description: "Fragments, observations, and ideas in progress."
+---
+
+<Collection path="notes" />
 ```
 
-If the target collection is missing, invalid, empty, or contains only unpublished entries, the adapter returns `null` and the page continues rendering.
+The index metadata provides the landing page heading, introduction, and SEO description. Its body defines what appears below them, so do not duplicate the heading in the body.
 
-Header links for collection-backed sections follow the same rule: empty or missing collections are skipped before shell renderers receive resolved navigation.
-
-## MDX Boundary
-
-MDX is a composition surface. It can declare page sequence and semantic intent, but it should not perform filesystem traversal, sorting, filtering, or data loading.
-
-Supported MDX-facing adapters include:
-
-- `<Collection />` via `src/components/mdx/Collection.tsx`
-- `<Page />` via `src/components/mdx/Page.tsx`
-- `<Project />` via `src/components/mdx/Project.tsx`
-- semantic blocks such as `<Note />` and `<Warning />`
-
-`home.mdx` owns homepage content composition only. It can include authored pages with declarations such as:
+Connect the folder from `header.mdx`:
 
 ```mdx
-<Page path="about" />
+<Collection path="notes" title="notes" />
 ```
 
-Authored page content stays in `content/pages/*.mdx`, so homepage composition does not duplicate page prose.
+This publishes `/notes` and its published entries. There is no `content/pages/notes.mdx`, collection registry, or notes-specific route code.
 
-## Block-Based Editing
-
-The editing model is block-based at the MDX level.
-
-An authored page is a sequence of blocks:
+A new entry:
 
 ```mdx
-# Heading
+---
+title: "the art of the arrow"
+date: "2026-10-20"
+description: "On becoming, direction, and the selves we inherit."
+---
 
-Plain prose.
+Your note goes here.
+```
 
+Its URL is `/notes/the-art-of-the-arrow`. Use quoted ISO date strings. Entries sort newest first, then by title. The index is excluded from entry listings. Frontmatter descriptions supply entry metadata and excerpts; list presentation remains the responsibility of the renderer.
+
+## Homepage composition
+
+The existing homepage syntax is unchanged:
+
+```mdx
 <Page path="about" />
 
 <Collection path="posts" title="blog" limit={3} />
 
-<Project title="Privledger" stack={["mdx", "next.js"]}>
-  A short project description.
-</Project>
+<Collection path="projects" title="projects" limit={4} homepage />
 ```
 
-Each block expresses intent:
-
-- Markdown headings and paragraphs express document structure.
-- `<Page />` includes another authored page.
-- `<Collection />` places an automatically resolved collection.
-- `<Project />` renders a curated project row.
-- `<Note />` and `<Warning />` express semantic callouts.
-
-The block does not own its implementation. The MDX declaration is resolved by TypeScript and rendered by React/CSS.
-
-This means future editing tools can treat MDX as an ordered block list without changing the rendering architecture.
-
-## Pages
-
-`content/pages` contains authored page fragments and curated pages.
-
-Examples:
-
-```text
-content/pages/home.mdx
-content/pages/about.mdx
-content/pages/projects.mdx
-content/pages/footer.mdx
-```
-
-`home.mdx` is the homepage composition surface. It can include other pages:
+Add recent notes there with:
 
 ```mdx
-<Page path="about" />
+<Collection path="notes" title="notes" limit={3} />
 ```
 
-`projects.mdx` is the curated projects index. It is intentionally authored instead of generated from `content/projects`.
+Homepage references also publish their destinations, independently of navigation. `limit` only limits the displayed list; it does not limit published detail URLs. `homepage` filters entries with `showOnHomepage: false` before applying the limit. Omission of that frontmatter flag means true.
 
-Page inclusion is resolved by `src/components/mdx/Page.tsx`, which validates the requested page path through `src/lib/content.ts` before importing the MDX file.
+In ordinary content, `Page` includes the named page's content and makes its standalone page reachable. In the header it renders a navigation link. The shell determines this context.
 
-## Collections
+## Draft and undraft
 
-Collection declarations are resolved before pure renderers receive props.
+A folder without any connection from the shell's reachable documents is inactive, even if it contains an index referencing itself.
 
-- `src/components/mdx/Collection.tsx` is the public MDX adapter for `<Collection />`.
-- `src/components/content/CollectionBlock.tsx` is the pure renderer boundary.
-- `src/components/content/EntryList.tsx` renders lists of normalized entries.
-- `src/components/content/EntryRow.tsx` renders a normalized entry.
+- Connect it with a `Collection` declaration to publish it.
+- Remove its final incoming reference to remove its index, detail URLs, and exclusive tags.
+- A surviving reference in the homepage, footer, or another reachable document keeps it published.
+- Set `published: false` on an entry to exclude that entry.
+- Set `published: false` on an index to exclude the collection and stop traversal through it.
+- Draft documents do not activate references in their bodies.
 
-Empty, invalid, unpublished, or missing collections are skipped before presentational renderers receive props.
+Rebuild and deploy for URL changes to take effect. Files stay on disk. Markdown links and `Project href` links do not activate content; use `Page` and `Collection` declarations to establish publication connections.
 
-## Posts And Tags
-
-Posts are filesystem-driven under `content/posts`.
-
-Post routes are generated from normalized post content:
+## Nested hierarchy
 
 ```text
-/posts
-/posts/[...slug]
+content/notes/linux/example.mdx       -> /notes/linux/example
+content/notes/topic/index.mdx         -> /notes/topic
+content/notes/topic/example.mdx       -> /notes/topic/example
 ```
 
-Tags are global metadata, not post-owned routes:
+Folders without indexes preserve entry slugs. Nested indexes establish sections, discovered when their parent is published. A draft nested index keeps its subtree unpublished unless another reachable declaration connects that subtree explicitly. Each section's collection list excludes its index and entries owned by nested sections.
 
-```text
-/tags
-/tags/[tag]
+## Projects and tags
+
+The curated projects index now lives at `content/projects/index.mdx`. Keep using existing `Project` declarations there. Detail pages remain under `content/projects/`. `showOnHomepage: false` still hides a project from the homepage without unpublishing it.
+
+Tags are discovered only from reachable, published frontmatter and literal `Project stack={["python", "javascript"]}` declarations. Do not duplicate metadata to create tag routes. Computed stacks, prop spreads, and conflicting tag slugs fail validation. Code-fence examples create no tags.
+
+Tag detail pages retain their existing posts-only behavior. A tag used only by a project or note has an empty posts state.
+
+## Validation
+
+Use literal paths without extensions or a leading slash. Relative `./` and `../` paths resolve from the declaring file; `.` names its current directory for collection declarations. Both quoted strings and literal string expressions are supported. Computed paths and prop spreads are rejected because route discovery happens before rendering.
+
+A missing collection folder is skipped. Once the folder exists, its index is required. Missing referenced pages, circular page references, duplicate shell slots, URL collisions, and invalid metadata fail with a descriptive content invariant error. Unreferenced folders are not scanned for publication.
+
+```bash
+npm test
+npm run typecheck
+npm run build
 ```
-
-Post tags come from post frontmatter and are normalized into `{ label, slug, href }` objects before renderers receive them.
-
-Examples:
-
-```text
-next.js -> { label: "next.js", slug: "next-js", href: "/tags/next-js" }
-content-driven -> { label: "content-driven", slug: "content-driven", href: "/tags/content-driven" }
-```
-
-The tag index and detail pages are generated from normalized tags across posts and projects. A tag exists if it is used by any indexed content type.
-
-A tag detail page shows posts for that tag, so project stack tags act as shortcuts into related writing. If a tag exists only on a project and no post uses it yet, the tag page remains valid and renders an empty posts state instead of 404.
-
-Tag detail pages intentionally do not list projects right now. The site is writing-centric, and the project index is small enough to scan directly. Project tags point readers toward related writing instead of duplicating the project index through another navigation surface.
-
-Unknown tags that are not used anywhere still 404.
-
-## Projects
-
-Project detail frontmatter supports a homepage-only switch:
-
-```yaml
-showOnHomepage: true
-```
-
-Use `false` to hide the project from the homepage. Omission means `true`. This must be a YAML boolean, not a quoted string. Homepage collections use `<Collection path="projects" homepage />`; they filter hidden projects before applying their limit. The detail page, tags, navigation, other collections, and manually curated project entries remain unchanged. This is separate from `published: false`, which excludes a detail file from indexed collections and detail routes.
-
-The `/projects` index is curated MDX, not an auto-generated project collection.
-
-```text
-content/pages/projects.mdx
-```
-
-Project rows are authored with `<Project />`. The MDX-facing component resolves project declarations and normalized stack tags before handing them to the pure `ProjectRow` renderer. Stack tags link to global tag routes that show related posts.
-
-Project detail pages may still live under `content/projects` and resolve to nested static routes.
-
-This creates two project surfaces:
-
-- `content/pages/projects.mdx` controls the curated index and ordering.
-- `content/projects/**/*.mdx` can hold longer project detail pages.
-
-The curated index avoids over-generalizing project metadata. A project row declares exactly the fields the renderer needs:
-
-```mdx
-<Project
-  title="Privledger"
-  href="/projects/privledger"
-  position="creator"
-  period="2026 - present"
-  stack={["mdx", "next.js", "filesystem"]}
->
-  A private ledger experiment for filesystem-first publishing.
-</Project>
-```
-
-This keeps project-list structure explicit in MDX without making every post/page frontmatter carry project-specific fields.
-
-Project stack tags automatically generate global tag pages, even for projects linking directly to GitHub with no detail page. Do not duplicate them in another file just to create routes. The content index reads literal `stack={["python", "javascript"]}` declarations before rendering. Use explicit arrays of strings; computed stacks and prop spreads on `Project` are rejected. Fenced code examples do not create tags. Tag pages still list related posts, or show “No posts yet.” when none exist.

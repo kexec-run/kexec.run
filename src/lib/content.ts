@@ -4,6 +4,8 @@ import matter from "gray-matter"
 import { createProcessor } from "@mdx-js/mdx"
 import { visit } from "unist-util-visit"
 import type {
+  ContentRoute,
+  SiteGraph,
   CollectionDeclaration,
   CollectionName,
   ContentEntry,
@@ -18,17 +20,12 @@ import type {
 } from "@/types/content"
 
 const contentRoot = path.join(process.cwd(), "content")
-const collections: CollectionName[] = ["posts", "projects"]
 const mdxParser = createProcessor()
 
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(`[content invariant] ${message}`)
   }
-}
-
-function isCollectionName(value: string): value is CollectionName {
-  return collections.includes(value as CollectionName)
 }
 
 function toPosixPath(value: string): string {
@@ -69,33 +66,40 @@ export function normalizeTags(tags: string[] | undefined): ResolvedTag[] {
 }
 
 function isSafeContentPath(value: string): boolean {
-  return (
-    value.length > 0 &&
-    !path.isAbsolute(value) &&
-    !value.split("/").includes("..") &&
-    !value.endsWith("/") &&
-    !/\.mdx?$/.test(value)
-  )
+  return /^(?!.*\.mdx?$)[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(value)
 }
 
-function listMdxFiles(dir: string): string[] {
-  if (!fs.existsSync(dir)) {
-    return []
+/** Resolve authored paths to extensionless paths under content/. */
+export function resolveContentPath(kind: "Page" | "Collection", target: string, from?: string): string {
+  const relative = target === "." || target === ".." || target.startsWith("./") || target.startsWith("../")
+  invariant(!relative || from, `Relative ${kind} path ${target} needs a declaring document`)
+  // Validate segments before normalization so traversal cannot hide malformed paths.
+  invariant(target.replace(/\/$/, "").split("/").every((segment) => segment === "." || segment === ".." ||
+    /^[a-zA-Z0-9_-]+$/.test(segment)), `Invalid ${kind} path ${target}`)
+  const resolved = relative
+    ? path.posix.normalize(path.posix.join(path.posix.dirname(from!), target)).replace(/\/$/, "")
+    : kind === "Page" ? `pages/${target}` : target
+  invariant(isSafeContentPath(resolved), `Invalid ${kind} path ${target}: escapes content or names an invalid target`)
+  return resolved
+}
+
+// An index starts a nested section; its publication flag governs its subtree.
+function collectionDocuments(directory: string): { entries: string[]; sections: string[] } {
+  const entries: string[] = []
+  const sections: string[] = []
+  if (!fs.existsSync(directory)) return { entries, sections }
+  for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+    const target = path.join(directory, item.name)
+    if (item.isDirectory()) {
+      if (fs.existsSync(path.join(target, "index.mdx"))) sections.push(target)
+      else {
+        const nested = collectionDocuments(target)
+        entries.push(...nested.entries)
+        sections.push(...nested.sections)
+      }
+    } else if (item.isFile() && /\.mdx?$/.test(item.name) && item.name !== "index.mdx") entries.push(target)
   }
-
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const fullPath = path.join(dir, entry.name)
-
-    if (entry.isDirectory()) {
-      return listMdxFiles(fullPath)
-    }
-
-    if (entry.isFile() && /\.mdx?$/.test(entry.name)) {
-      return [fullPath]
-    }
-
-    return []
-  })
+  return { entries, sections }
 }
 
 function normalizeMetadata(data: Record<string, unknown>, source: string): ContentMetadata {
@@ -147,11 +151,12 @@ function firstContentLine(body: string): string {
   )
 }
 
-export function getCollectionEntries(collection: CollectionName): ContentEntry[] {
+function readCollectionEntries(collection: CollectionName): ContentEntry[] {
+  if (!isSafeContentPath(collection) || collection === "pages") return []
   const collectionRoot = path.join(contentRoot, collection)
   const seenSlugs = new Map<string, string>()
 
-  return listMdxFiles(collectionRoot)
+  return collectionDocuments(collectionRoot).entries
     .map((filePath) => {
       invariant(path.extname(filePath).toLowerCase() === ".mdx", `Unsupported content extension in ${filePath}; use .mdx`)
 
@@ -192,24 +197,11 @@ export function getPageMetadata(page: PageName): ContentMetadata {
 }
 
 export function resolvePage(declaration: PageDeclaration): ResolvedPage | null {
-  if (!isSafeContentPath(declaration.path)) {
-    return null
-  }
-
-  const pagePath = toPosixPath(declaration.path)
-  const filePath = path.join(contentRoot, "pages", `${pagePath}.mdx`)
-
-  if (!fs.existsSync(filePath)) {
-    return null
-  }
-
-  const raw = fs.readFileSync(filePath, "utf8")
-  const { data } = matter(raw)
-
-  return {
-    path: pagePath,
-    metadata: normalizeMetadata(data, filePath),
-  }
+  const source = resolveContentPath("Page", declaration.path, declaration.from)
+  const filePath = path.join(contentRoot, `${source}.mdx`)
+  if (!fs.existsSync(filePath)) return null
+  const { metadata } = readDocument(source)
+  return metadata.published ? { path: source, metadata } : null
 }
 
 function collectionLabel(collection: CollectionName): string {
@@ -217,7 +209,7 @@ function collectionLabel(collection: CollectionName): string {
 }
 
 export function resolveCollection(declaration: CollectionDeclaration): ResolvedCollection | null {
-  if (!isCollectionName(declaration.path)) {
+  if (!isSafeContentPath(declaration.path)) {
     return null
   }
 
@@ -233,7 +225,7 @@ export function resolveCollection(declaration: CollectionDeclaration): ResolvedC
   }
 
   const entries = getCollectionEntries(declaration.path).filter((entry) =>
-    !declaration.homepage || declaration.path !== "projects" || entry.metadata.showOnHomepage !== false,
+    !declaration.homepage || entry.metadata.showOnHomepage !== false,
   )
   const limited = typeof declaration.limit === "number" ? entries.slice(0, declaration.limit) : entries
 
@@ -253,7 +245,7 @@ export function resolveCollection(declaration: CollectionDeclaration): ResolvedC
 
 export function resolveSections(declarations: SectionDeclaration[]): ResolvedSection[] {
   return declarations.flatMap((section) => {
-    if (!isCollectionName(section.path)) {
+    if (!isSafeContentPath(section.path)) {
       return []
     }
 
@@ -329,18 +321,11 @@ export function getTags(): ResolvedTag[] {
     }
   }
 
-  collections.forEach((collection) => {
-    getCollectionEntries(collection).forEach((entry) => entry.tags.forEach(addTag))
-  })
-
-  // Discover declarations before rendering; examples in fenced code are not JSX nodes.
-  for (const directory of ["pages", ...collections]) {
-    listMdxFiles(path.join(contentRoot, directory)).forEach((filePath) => {
-      const { data, content } = matter(fs.readFileSync(filePath, "utf8"))
-      if (normalizeMetadata(data, filePath).published) {
-        getDeclaredProjectTags(content, filePath).forEach(addTag)
-      }
-    })
+  // Only reachable, published documents contribute tags.
+  for (const source of discoverSite().sources) {
+    const { metadata, body } = readDocument(source)
+    normalizeTags(metadata.tags).forEach(addTag)
+    getDeclaredProjectTags(body, source).forEach(addTag)
   }
 
   return Array.from(tags.values()).sort((a, b) => a.label.localeCompare(b.label))
@@ -348,4 +333,155 @@ export function getTags(): ResolvedTag[] {
 
 export function getTaggedPosts(tag: string): ContentEntry[] {
   return getCollectionEntries("posts").filter((entry) => entry.tags.some((entryTag) => entryTag.slug === tag))
+}
+
+function readDocument(source: string) {
+  const filePath = path.join(contentRoot, `${source}.mdx`)
+  invariant(fs.existsSync(filePath), `Missing referenced document ${source}.mdx`)
+  const { data, content } = matter(fs.readFileSync(filePath, "utf8"))
+  return { metadata: normalizeMetadata(data, filePath), body: content }
+}
+
+type Reference = {
+  name: "Page" | "Collection"
+  path: string
+  slot?: "header" | "main" | "footer"
+}
+
+// Read declarations without evaluating MDX. Fenced examples create no edges.
+function getReferences(body: string, source: string): Reference[] {
+  const references: Reference[] = []
+  visit(mdxParser.parse(body), (node) => {
+    if ((node.type !== "mdxJsxFlowElement" && node.type !== "mdxJsxTextElement") ||
+      (node.name !== "Page" && node.name !== "Collection")) return
+    invariant(node.attributes.every((attribute) => attribute.type === "mdxJsxAttribute"),
+      `${node.name} props must be explicit, without spreads, in ${source}`)
+    const componentName = node.name
+    function literal(name: string): string | undefined {
+      const attributes = node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement"
+        ? node.attributes.filter((attribute) => attribute.type === "mdxJsxAttribute" && attribute.name === name) : []
+      invariant(attributes.length <= 1, `Duplicate ${componentName} ${name} in ${source}`)
+      const attribute = attributes[0]
+      if (!attribute || attribute.type !== "mdxJsxAttribute") return undefined
+      const value = attribute.value
+      const statement = typeof value === "object" && value ? value.data?.estree?.body[0] : undefined
+      const expression = statement?.type === "ExpressionStatement" ? statement.expression : undefined
+      const result = typeof value === "string" ? value : expression?.type === "Literal" ? expression.value : undefined
+      invariant(typeof result === "string", `${componentName} ${name} must be a literal string in ${source}`)
+      return result
+    }
+    const target = literal("path")
+    invariant(target, `Missing ${node.name} path in ${source}`)
+    const resolved = resolveContentPath(node.name, target, source)
+    const slot = literal("slot")
+    invariant(!slot || (source === "shell/index" && node.name === "Page" &&
+      ["header", "main", "footer"].includes(slot)), `Invalid shell slot in ${source}`)
+    references.push({ name: node.name, path: resolved, slot: slot as Reference["slot"] })
+  })
+  return references
+}
+
+export function discoverSite(): SiteGraph {
+  const routes = new Map<string, ContentRoute>()
+  const sources = new Set<string>()
+  const collections = new Set<string>()
+  const visiting = new Set<string>()
+  const shell = readDocument("shell/index")
+  invariant(shell.metadata.published, "shell/index.mdx must be published")
+  const shellReferences = getReferences(shell.body, "shell/index")
+  for (const slot of ["header", "main", "footer"]) {
+    invariant(shellReferences.filter((reference) => reference.slot === slot).length <= 1,
+      `Duplicate shell slot ${slot}`)
+  }
+  const main = shellReferences.filter((reference) => reference.slot === "main")
+  invariant(main.length === 1, "shell/index.mdx requires exactly one Page with slot=main")
+  const home = main[0].path
+  const fragments = new Set(shellReferences.filter((reference) => reference.slot && reference.slot !== "main")
+    .map((reference) => reference.path))
+
+  function addRoute(source: string, href: string, kind: ContentRoute["kind"]) {
+    invariant(!/^\/tags(?:\/|$)/.test(href), `Content route ${href} collides with reserved tags routes`)
+    const previous = routes.get(href)
+    invariant(!previous || previous.source === source, `Route collision at ${href}: ${previous?.source} and ${source}`)
+    const { metadata } = readDocument(source)
+    if (metadata.published) routes.set(href, { source, href, metadata, kind })
+  }
+
+  function walkDocument(source: string) {
+    invariant(!visiting.has(source), `Circular Page reference: ${[...visiting, source].join(" -> ")}`)
+    if (sources.has(source)) return
+    const { metadata, body } = readDocument(source)
+    if (!metadata.published) return
+    sources.add(source)
+    visiting.add(source)
+    for (const reference of getReferences(body, source)) {
+      if (reference.name === "Collection") {
+        walkCollection(reference.path)
+      } else {
+        const target = reference.path
+        if (!fragments.has(target)) {
+          const href = target === home ? "/" : `/${target.replace(/^pages\//, "").replace(/\/index$/, "")}`
+          const kind = target.startsWith("pages/") ? "page" : target.endsWith("/index") ? "index" : "entry"
+          addRoute(target, href, kind)
+        }
+        walkDocument(target)
+      }
+    }
+    visiting.delete(source)
+  }
+
+  function walkCollection(collection: string) {
+    invariant(!["pages", "shell"].includes(collection.split("/")[0]), `Reserved collection path ${collection}`)
+    if (collections.has(collection)) return
+    const directory = path.join(contentRoot, collection)
+    // Missing folders remain harmless declarations, as before.
+    if (!fs.existsSync(directory)) return
+    const index = `${collection}/index`
+    const { metadata } = readDocument(index)
+    if (!metadata.published) return
+    collections.add(collection)
+    addRoute(index, `/${collection}`, "index")
+    walkDocument(index)
+    for (const entry of readCollectionEntries(collection)) {
+      const source = `${collection}/${entry.slug.join("/")}`
+      addRoute(source, entry.href, "entry")
+      walkDocument(source)
+    }
+    // Nested indexes are sections too, with their own publication boundary.
+    for (const directoryPath of collectionDocuments(directory).sections) {
+      walkCollection(toPosixPath(path.relative(contentRoot, directoryPath)))
+    }
+  }
+
+  walkDocument("shell/index")
+  invariant(routes.has("/"), "The shell main page must be published")
+  return { home, routes: [...routes.values()], collections: [...collections], sources: [...sources] }
+}
+
+export function getCollectionEntries(collection: CollectionName): ContentEntry[] {
+  const site = discoverSite()
+  if (!site.collections.includes(collection)) return []
+  const published = new Set(site.routes.map((route) => route.href))
+  return readCollectionEntries(collection).filter((entry) => published.has(entry.href))
+}
+
+export function getContentRoute(slug: string[]): ContentRoute | null {
+  const href = slug.length ? `/${slug.join("/")}` : "/"
+  return discoverSite().routes.find((route) => route.href === href) ?? null
+}
+
+export function getContentStaticParams(): Array<{ slug: string[] }> {
+  return discoverSite().routes.filter((route) => route.href !== "/")
+    .map((route) => ({ slug: route.href.slice(1).split("/") }))
+}
+
+export function resolvePageLink({ path: page, title, from }: PageDeclaration) {
+  const source = resolveContentPath("Page", page, from)
+  const route = discoverSite().routes.find((candidate) => candidate.source === source)
+  return route ? { href: route.href, label: title ?? route.metadata.title } : null
+}
+
+export function resolveCollectionLink({ path: collection, title }: CollectionDeclaration) {
+  const route = discoverSite().routes.find((candidate) => candidate.href === `/${collection}`)
+  return route ? { href: route.href, label: title ?? route.metadata.title } : null
 }

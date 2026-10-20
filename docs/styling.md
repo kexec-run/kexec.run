@@ -16,7 +16,7 @@ Footer follows the same shell naming, but its content can be authored:
 
 - `src/components/layout/SiteFooter.tsx` is the shell footer adapter.
 - `src/components/layout/Footer.tsx` is the presentational footer renderer.
-- `content/pages/footer.mdx` is allowed as authored footer content, because footer copy and links may change without becoming application logic.
+- `content/shell/footer.mdx` is allowed as authored footer content, because footer copy and links may change without becoming application logic.
 
 ## Renderer Boundaries
 

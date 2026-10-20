@@ -43,6 +43,21 @@ async function withContent(files, check) {
   const previous = process.cwd()
   const root = mkdtempSync(path.join(tmpdir(), "portfolio-tags-"))
   try {
+    if (!("shell/index.mdx" in files)) {
+      files = { ...files }
+      const declarations = []
+      for (const collection of ["posts", "projects"]) {
+        if (Object.keys(files).some((file) => file.startsWith(`${collection}/`))) {
+          files[`${collection}/index.mdx`] ??= `<Collection path="${collection}" />`
+          declarations.push(`<Collection path="${collection}" />`)
+        }
+      }
+      for (const file of Object.keys(files).filter((file) => file.startsWith("pages/"))) {
+        declarations.push(`<Page path="${file.slice(6, -4)}" />`)
+      }
+      files["pages/home.mdx"] = declarations.join("\n\n")
+      files["shell/index.mdx"] = '<Page path="home" slot="main" />'
+    }
     for (const [file, body] of Object.entries(files)) {
       const target = path.join(root, "content", file)
       mkdirSync(path.dirname(target), { recursive: true })
@@ -60,7 +75,7 @@ async function withContent(files, check) {
 
 test("external project tags need no detail page, merge with posts, and skip drafts", async () => {
   await withContent({
-    "pages/projects.mdx": '<Project href="https://example.test" stack={["python", "javascript"]} />',
+    "projects/index.mdx": '<Project href="https://example.test" stack={["python", "javascript"]} />',
     "posts/example.mdx": '---\ntitle: Example\ntags: [python]\n---\nHello.',
     "pages/draft.mdx": '---\npublished: false\n---\n<Project stack={["draft"]} />',
     "projects/draft.mdx": '---\npublished: false\ntags: [hidden]\n---\n<Project stack={["hidden-stack"]} />',
@@ -76,7 +91,7 @@ test("external project tags need no detail page, merge with posts, and skip draf
 
 test("conflicting labels across metadata and declarations fail clearly", async () => {
   await withContent({
-    "pages/projects.mdx": '<Project stack={["next-js"]} />',
+    "projects/index.mdx": '<Project stack={["next-js"]} />',
     "posts/example.mdx": '---\ntags: [next.js]\n---\nHello.',
   }, ({ getTags }) => assert.throws(() => getTags(), /share slug next-js/))
 })
@@ -119,4 +134,133 @@ test("invalid homepage visibility types fail clearly", async () => {
       "projects/invalid.mdx": `---\nshowOnHomepage: ${value}\n---\nInvalid.`,
     }, ({ getCollectionEntries }) => assert.throws(() => getCollectionEntries("projects"), /Invalid showOnHomepage/))
   }
+})
+
+const shell = '<Page path="header" slot="header" />\n\n<Page path="home" slot="main" />\n\n<Page path="footer" slot="footer" />'
+const baseSite = {
+  "shell/index.mdx": shell,
+  "pages/header.mdx": '<Page path="home" title="home" />',
+  "pages/home.mdx": '---\ntitle: Home\n---\nWelcome.',
+  "pages/footer.mdx": '[email](mailto:example@example.test)',
+}
+const notes = {
+  "notes/index.mdx": '---\ntitle: notes\ndescription: Small observations\n---\n<Collection path="notes" />',
+  "notes/first.mdx": '---\ntitle: First\ndate: "2026-10-19"\ntags: [thinking]\n---\nFirst.',
+  "notes/later.mdx": '---\ntitle: Later\ndate: "2026-10-20"\n---\nLater.',
+  "notes/draft.mdx": '---\npublished: false\ntags: [secret]\n---\n<Collection path="hidden" />',
+}
+
+test("header-only collection reference publishes its index and entries, excluding drafts", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/header.mdx": '<Page path="home" title="home" />\n\n<Collection path="notes" title="notes" />',
+  }, ({ discoverSite, getCollectionEntries, resolveCollectionLink, getTags }) => {
+    const site = discoverSite()
+    assert.deepEqual(site.routes.map((route) => route.href).sort(), ["/", "/notes", "/notes/first", "/notes/later"])
+    assert.deepEqual(getCollectionEntries("notes").map((entry) => entry.metadata.title), ["Later", "First"])
+    assert.deepEqual(resolveCollectionLink({ path: "notes" }), { href: "/notes", label: "notes" })
+    assert.equal(site.routes.find((route) => route.href === "/notes").metadata.description, "Small observations")
+    assert.deepEqual(getTags().map((tag) => tag.slug), ["thinking"])
+    assert(!site.sources.includes("pages/header/index"))
+  })
+})
+
+test("removing the last reference removes collection routes and tags while files stay on disk", async () => {
+  await withContent({ ...baseSite, ...notes }, ({ discoverSite, getContentRoute, getCollectionEntries, getTags }) => {
+    assert.deepEqual(discoverSite().routes.map((route) => route.href), ["/"])
+    assert.equal(getContentRoute(["notes"]), null)
+    assert.equal(getContentRoute(["notes", "first"]), null)
+    assert.deepEqual(getCollectionEntries("notes"), [])
+    assert.deepEqual(getTags(), [])
+  })
+})
+
+test("a homepage reference keeps a collection published without a header link", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/home.mdx": '<Collection path="notes" title="notes" limit={1} />',
+  }, ({ getContentStaticParams, resolveCollection }) => {
+    assert(getContentStaticParams().some(({ slug }) => slug.join("/") === "notes/first"))
+    assert.equal(resolveCollection({ path: "notes", limit: 1 }).entries.length, 1)
+  })
+})
+
+test("unpublished index blocks its entries and outgoing references", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/header.mdx": '<Collection path="notes" />',
+    "notes/index.mdx": '---\npublished: false\n---\n<Page path="missing" />',
+  }, ({ discoverSite, getTags }) => {
+    assert.deepEqual(discoverSite().routes.map((route) => route.href), ["/"])
+    assert.deepEqual(getTags(), [])
+  })
+})
+
+test("nested hierarchy preserves slugs and honors nested section drafts", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/header.mdx": '<Collection path="notes" />',
+    "notes/linux/plain.mdx": '---\ntitle: Plain\n---\nNested file.',
+    "notes/topic/index.mdx": '<Collection path="notes/topic" />',
+    "notes/topic/example.mdx": 'Example.',
+    "notes/private/index.mdx": '---\npublished: false\n---\nDraft section.',
+    "notes/private/secret.mdx": '---\ntags: [private]\n---\nSecret.',
+    "notes/private/deeper/index.mdx": 'Must stay hidden.',
+  }, ({ discoverSite, getTags }) => {
+    const routes = discoverSite().routes.map((route) => route.href)
+    assert(routes.includes("/notes/linux/plain"))
+    assert(routes.includes("/notes/topic"))
+    assert(routes.includes("/notes/topic/example"))
+    assert(!routes.some((route) => route.startsWith("/notes/private")))
+    assert(!getTags().some((tag) => tag.slug === "private"))
+  })
+})
+
+test("fenced declarations and unreachable malformed content cannot activate sections", async () => {
+  await withContent({ ...baseSite, ...notes,
+    "pages/home.mdx": '```mdx\n<Collection path="notes" />\n```',
+    "orphan/index.mdx": '<Collection path={unknown} />',
+  }, ({ discoverSite }) => assert.deepEqual(discoverSite().routes.map((route) => route.href), ["/"]))
+})
+
+test("cycles, missing indexes, dynamic paths, and route collisions fail during discovery", async () => {
+  const cases = [
+    [{ "pages/home.mdx": '<Page path="other" />', "pages/other.mdx": '<Page path="home" />' }, /Circular Page/],
+    [{ "pages/home.mdx": '<Page path="missing" />' }, /Missing referenced document/],
+    [{ "pages/home.mdx": '<Collection path="notes" />', "notes/example.mdx": 'Example.' }, /notes\/index/],
+    [{ "pages/home.mdx": '<Collection path={unknown} />' }, /literal string/],
+    [{ "pages/home.mdx": '<Collection {...props} />' }, /without spreads/],
+    [{ ...notes, "pages/home.mdx": '<Collection path="notes" />\n\n<Page path="notes" />', "pages/notes.mdx": 'Collision.' }, /Route collision/],
+    [{ "pages/home.mdx": '<Collection path="tags" />', "tags/index.mdx": 'Reserved.' }, /reserved tags/],
+    [{ "pages/home.mdx": '<Collection path="../../../outside" />' }, /Invalid Collection path/],
+  ]
+  for (const [files, error] of cases) {
+    await withContent({ ...baseSite, ...files }, ({ discoverSite }) => assert.throws(() => discoverSite(), error))
+  }
+})
+
+test("shell folder resolves sibling fragments, parent paths, and legacy bare paths", async () => {
+  await withContent({
+    "shell/index.mdx": '<Page path="./header" slot="header" />\n\n<Page path="../pages/home" slot="main" />\n\n<Page path="./footer" slot="footer" />',
+    "shell/header.mdx": '<Page path="../pages/home" title="home" />\n\n<Collection path="../notes" />',
+    "shell/footer.mdx": '[email](mailto:example@example.test)',
+    "pages/home.mdx": '<Page path="about" />\n\n<Collection path="posts" />',
+    "pages/about.mdx": '<Page path="./fragments/bio" />',
+    "pages/fragments/bio.mdx": 'Biography.',
+    "posts/index.mdx": '<Collection path="." />',
+    "posts/example.mdx": 'Post.',
+    ...notes,
+  }, ({ discoverSite, resolvePage, resolvePageLink, getCollectionEntries, resolveContentPath }) => {
+    const site = discoverSite()
+    assert.equal(site.home, "pages/home")
+    assert(site.sources.includes("shell/header"))
+    assert(site.sources.includes("shell/footer"))
+    assert(!site.routes.some((route) => route.href.startsWith("/shell")))
+    assert(site.routes.some((route) => route.href === "/notes/first"))
+    assert(site.routes.some((route) => route.href === "/fragments/bio"))
+    assert.equal(getCollectionEntries("posts").length, 1)
+    assert.equal(resolvePage({ path: "./header", from: "shell/index" }).path, "shell/header")
+    assert.equal(resolvePage({ path: "about" }).path, "pages/about")
+    assert.deepEqual(resolvePageLink({ path: "../pages/home", from: "shell/header", title: "home" }),
+      { href: "/", label: "home" })
+    assert.equal(resolveContentPath("Collection", "./", "notes/index"), "notes")
+    assert.throws(() => resolveContentPath("Page", "../../../escape", "shell/header"), /escapes content/)
+    assert.throws(() => resolveContentPath("Page", "./header"), /declaring document/)
+  })
 })

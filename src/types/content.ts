@@ -1,5 +1,5 @@
-export type CollectionName = "posts" | "projects"
-export type PageName = "home" | "about" | "projects"
+export type CollectionName = string
+export type PageName = string
 
 export type SectionDeclaration = {
   label: string
@@ -57,9 +57,27 @@ export type ResolvedCollection = {
 
 export type PageDeclaration = {
   path: string
+  /** Declaring document, supplied by the MDX renderer. */
+  from?: string
+  title?: string
+  slot?: "header" | "main" | "footer"
 }
 
 export type ResolvedPage = {
   path: string
   metadata: ContentMetadata
+}
+
+export type ContentRoute = {
+  href: string
+  source: string
+  metadata: ContentMetadata
+  kind: "page" | "index" | "entry"
+}
+
+export type SiteGraph = {
+  home: string
+  routes: ContentRoute[]
+  collections: string[]
+  sources: string[]
 }
