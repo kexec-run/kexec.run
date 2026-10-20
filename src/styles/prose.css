@@ -177,6 +177,16 @@
   grid-template-columns: minmax(0, 1fr) max-content;
 }
 
+.entry-row-main > time + h3:last-child {
+  grid-column: 2 / -1;
+  max-width: none;
+}
+
+.entry-row-main > h3:only-child {
+  grid-column: 1 / -1;
+  max-width: none;
+}
+
 .entry-row time {
   color: var(--color-dim);
   font-size: 15px;
@@ -276,6 +286,10 @@
   .entry-row-main {
     gap: 4px;
     grid-template-columns: 1fr;
+  }
+
+  .entry-row-main > time + h3:last-child {
+    grid-column: 1 / -1;
   }
 
   .entry-tags {
