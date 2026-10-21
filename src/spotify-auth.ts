@@ -13,10 +13,12 @@ const encoder = new TextEncoder()
 function response(body: string, status = 200, extraHeaders: HeadersInit = {}): Response {
   const headers = new Headers(extraHeaders)
   headers.set("Cache-Control", "no-store")
-  headers.set("Referrer-Policy", "no-referrer")
+  if (!headers.has("Referrer-Policy")) headers.set("Referrer-Policy", "no-referrer")
   headers.set("X-Content-Type-Options", "nosniff")
   headers.set("X-Robots-Tag", "noindex, nofollow")
-  headers.set("Content-Security-Policy", "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+  if (!headers.has("Content-Security-Policy")) {
+    headers.set("Content-Security-Policy", "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+  }
   if (!headers.has("Content-Type")) headers.set("Content-Type", "text/plain; charset=utf-8")
   return new Response(body, { status, headers })
 }
@@ -72,7 +74,13 @@ export async function spotifyAuth(request: Request, env: SpotifyAuthEnv): Promis
 
   if (!isCallback) {
     if (request.method === "GET") {
-      return response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Spotify setup</title><h1>Connect your Spotify account</h1><form method="post" action="/api/spotify/login"><label>Setup token <input type="password" name="setup_token" required autocomplete="off" maxlength="512"></label> <button type="submit">Continue to Spotify</button></form></html>`, 200, { "Content-Type": "text/html; charset=utf-8" })
+      // Native form POSTs need same-origin policy to retain their Origin header.
+      return response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Spotify setup</title><h1>Connect your Spotify account</h1><form method="post" action="/api/spotify/login"><label>Setup token <input type="password" name="setup_token" required autocomplete="off" maxlength="512"></label> <button type="submit">Continue to Spotify</button></form></html>`, 200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Referrer-Policy": "same-origin",
+        // Browsers apply form-action to the redirect to Spotify as well.
+        "Content-Security-Policy": "default-src 'none'; form-action 'self' https://accounts.spotify.com; frame-ancestors 'none'; base-uri 'none'",
+      })
     }
     if (request.method !== "POST") return response("Method not allowed.", 405, { Allow: "GET, POST" })
     if (request.headers.get("Origin") !== url.origin) return reply("Invalid setup request origin.", 403)

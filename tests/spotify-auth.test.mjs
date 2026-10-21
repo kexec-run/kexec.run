@@ -39,9 +39,9 @@ function callbackRequest(flow, query = {}) {
   return new Request(url, { headers: { Cookie: flow.cookie } })
 }
 
-function assertPrivate(response) {
+function assertPrivate(response, referrerPolicy = "no-referrer") {
   assert.equal(response.headers.get("Cache-Control"), "no-store")
-  assert.equal(response.headers.get("Referrer-Policy"), "no-referrer")
+  assert.equal(response.headers.get("Referrer-Policy"), referrerPolicy)
   assert.match(response.headers.get("Content-Security-Policy"), /frame-ancestors 'none'/)
   assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow")
 }
@@ -63,7 +63,9 @@ test("setup is disabled without every credential and a strong setup key, and clo
 test("login form contains no credentials and requires the configured HTTPS origin", async () => {
   const result = await worker.fetch(request("login"), env)
   assert.equal(result.status, 200)
-  assertPrivate(result)
+  // no-referrer makes browsers send Origin: null on native form POSTs.
+  assertPrivate(result, "same-origin")
+  assert.match(result.headers.get("Content-Security-Policy"), /form-action 'self' https:\/\/accounts\.spotify\.com;/)
   assert.match(result.headers.get("Content-Type"), /text\/html/)
   const html = await result.text()
   assert.match(html, /method="post"/)
@@ -75,6 +77,7 @@ test("login form contains no credentials and requires the configured HTTPS origi
 
 test("only an authenticated same-origin setup form starts authorization", async () => {
   assert.equal((await worker.fetch(loginRequest("incorrect"), env)).status, 403)
+  assert.equal((await worker.fetch(loginRequest(undefined, "null"), env)).status, 403)
   assert.equal((await worker.fetch(loginRequest(undefined, "https://attacker.example"), env)).status, 403)
   assert.equal((await worker.fetch(request("login", { method: "POST", body: "setup_token=x" }), env)).status, 403)
   const wrongType = request("login", { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: "{}" })
