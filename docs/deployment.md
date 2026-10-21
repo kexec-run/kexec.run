@@ -49,11 +49,25 @@ The repository already uses `wrangler.jsonc`; a separate `wrangler.toml` is unne
 
 ## Runtime endpoint and secrets
 
-`GET /api/spotify` currently returns `{"status":"ready"}`. This checks Worker routing only; it does not connect to Spotify or require credentials. Other API paths return JSON 404 responses. Page requests continue through the static asset service, including its custom 404 handling.
+`GET /api/spotify` currently returns `{"status":"ready"}`. This checks Worker routing only; it does not fetch playback or require credentials. The Worker also handles the Spotify setup routes described below. Other API paths return JSON 404 responses. Page requests continue through the static asset service, including its custom 404 handling.
 
 Test the endpoint with `npx wrangler dev`, then open `/api/spotify` on the local address it prints. `npm run dev` starts Next.js only and does not run the Worker API. A non-publishing bundle check is available with `npx wrangler deploy --dry-run` after building.
 
-After deploying the script to the intended Worker, configure Spotify credentials as runtime secrets in that Worker's Settings → Variables and Secrets. Build variables are separate. Keep secrets out of source and Wrangler configuration. For local development, `.dev.vars*` is ignored by Git; no credentials are needed for the readiness endpoint.
+After deploying the script to the intended Worker, configure Spotify credentials in that Worker's Settings → Variables and Secrets. Build variables are separate. The public `SPOTIFY_CLIENT_ID` is recorded in Wrangler configuration so later deployments preserve it. Keep the client secret, refresh token, and setup token encrypted as runtime secrets, outside source and Wrangler configuration. For local development, `.dev.vars*` is ignored by Git; no credentials are needed for the readiness endpoint.
+
+### Connect Spotify
+
+This is an owner-only setup flow, separate from the public website. It uses Spotify's [authorization code flow](https://developer.spotify.com/documentation/web-api/tutorials/code-flow) and requests only `user-read-currently-playing`.
+
+1. In the Spotify app, register exactly `https://kexec.run/api/spotify/callback` as the redirect URI. The Worker uses this same fixed URL for authorization and token exchange. Setup must run on `https://kexec.run`, rather than a preview domain or the Next.js development server.
+2. Deploy the Worker to the target serving that domain. Configure `SPOTIFY_CLIENT_SECRET` as an encrypted runtime secret; the client ID is already in `wrangler.jsonc`.
+3. Generate a temporary setup key locally with `openssl rand -hex 32`. Add its output as the encrypted runtime secret `SPOTIFY_SETUP_TOKEN`. The Worker requires at least 32 characters and disables setup when the key or client credentials are missing.
+4. Open `https://kexec.run/api/spotify/login`, enter that setup key in the form, and authorize your Spotify account. The key is sent in the form body, never in the URL.
+5. The callback displays the refresh token as plain text. Save that value as the encrypted runtime secret `SPOTIFY_REFRESH_TOKEN` in the same Worker, then remove `SPOTIFY_SETUP_TOKEN` and close the callback tab. Do not copy tokens into source, issues, or chat.
+
+The setup form uses a same-origin POST. A signed, ten-minute state cookie binds the callback to the browser that started setup; the cookie is Secure, HttpOnly, and cleared on callback responses. Setup responses cannot be cached or framed and do not load external resources. Token exchange errors show a generic message. Only the refresh token is displayed, not the access token or client secret. The Worker does not store tokens automatically or log token responses.
+
+Once `SPOTIFY_REFRESH_TOKEN` exists, both setup routes return 404. To reconnect later, temporarily remove that secret and configure a fresh setup key, then repeat authorization. The `/api/spotify` readiness response and website UI do not use the saved refresh token yet; playback fetching is a separate step.
 
 ## Check published URLs
 

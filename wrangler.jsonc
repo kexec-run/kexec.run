@@ -3,6 +3,9 @@
   "name": "kexec-run-dev",
   "main": "src/worker.ts",
   "compatibility_date": "2026-07-29",
+  "vars": {
+    "SPOTIFY_CLIENT_ID": "932734c0ee7c42bdaff19ae4e1e0490b"
+  },
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",
