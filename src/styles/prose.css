@@ -34,17 +34,31 @@
 }
 
 .spotify-status {
+  height: 36px;
   margin-bottom: 12px;
 }
 
 .spotify-status a {
   align-items: center;
   color: var(--color-muted);
-  display: inline-flex;
+  display: flex;
   font-size: 12px;
   gap: 12px;
+  height: 100%;
+  line-height: 18px;
   max-width: 100%;
+  opacity: 0;
+  pointer-events: none;
   text-decoration: none;
+  transition: opacity 240ms ease, visibility 0s linear 240ms;
+  visibility: hidden;
+}
+
+.spotify-status[data-playing="true"] a {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
+  visibility: visible;
 }
 
 .spotify-status img {
@@ -52,8 +66,18 @@
 }
 
 .spotify-status span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotify-status a {
+    transition: none;
+  }
 }
 
 .spotify-status a:hover,
