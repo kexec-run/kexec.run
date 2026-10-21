@@ -1,6 +1,6 @@
 # Deployment
 
-The site builds to static files in `out/`. The repository configures Cloudflare Worker assets to serve that directory through `wrangler.jsonc`. There is no request-time Next.js server.
+The site builds to static files in `out/`. The repository configures Cloudflare Worker assets to serve that directory through `wrangler.jsonc`. A small Worker script handles API requests alongside those assets. There is no request-time Next.js server.
 
 ## Build and check
 
@@ -23,8 +23,11 @@ The checked-in `wrangler.jsonc` sets:
 | Setting | Value |
 | --- | --- |
 | Worker name | `kexec-run-dev` |
+| Worker entry point | `src/worker.ts` |
 | Compatibility date | `2026-07-29` |
 | Asset directory | `./out` |
+| Asset binding | `ASSETS` |
+| Worker-first routes | `/api/*` |
 | HTML handling | `auto-trailing-slash` |
 | Missing routes | `404-page` |
 
@@ -44,6 +47,14 @@ npx wrangler deploy
 
 The repository already uses `wrangler.jsonc`; a separate `wrangler.toml` is unnecessary. Cloudflare Pages can also serve a static export, but Pages settings are not the checked-in deployment configuration.
 
+## Runtime endpoint and secrets
+
+`GET /api/spotify` currently returns `{"status":"ready"}`. This checks Worker routing only; it does not connect to Spotify or require credentials. Other API paths return JSON 404 responses. Page requests continue through the static asset service, including its custom 404 handling.
+
+Test the endpoint with `npx wrangler dev`, then open `/api/spotify` on the local address it prints. `npm run dev` starts Next.js only and does not run the Worker API. A non-publishing bundle check is available with `npx wrangler deploy --dry-run` after building.
+
+After deploying the script to the intended Worker, configure Spotify credentials as runtime secrets in that Worker's Settings → Variables and Secrets. Build variables are separate. Keep secrets out of source and Wrangler configuration. For local development, `.dev.vars*` is ignored by Git; no credentials are needed for the readiness endpoint.
+
 ## Check published URLs
 
 Authored routes come from content connected to `content/shell/index.mdx`. The export includes connected collection indexes and published entries, plus the global tag routes.
@@ -54,4 +65,4 @@ Deploy the complete new export so hosting also removes obsolete files. Building 
 
 ## Keep the site static
 
-Filesystem reads belong in `src/lib/content/filesystem.ts` and run during the build. Pages and components use the public API in `src/lib/content.ts`; they do not read content files directly. Keep page rendering compatible with `output: "export"`: avoid request-time APIs, request-dependent route handlers, ISR, and dynamic image routes. Static assets are served from the exported files.
+Filesystem reads belong in `src/lib/content/filesystem.ts` and run during the build. Pages and components use the public API in `src/lib/content.ts`; they do not read content files directly. Keep Next.js page rendering compatible with `output: "export"`: avoid request-time APIs, request-dependent route handlers, ISR, and dynamic image routes inside the Next.js app. Runtime endpoints belong in the separate Worker entry point. Static assets are served from the exported files.
