@@ -49,11 +49,11 @@ The repository already uses `wrangler.jsonc`; a separate `wrangler.toml` is unne
 
 ## Runtime endpoint and secrets
 
-`GET /api/spotify` currently returns `{"status":"ready"}`. This checks Worker routing only; it does not fetch playback or require credentials. The Worker also handles the Spotify setup routes described below. Other API paths return JSON 404 responses. Page requests continue through the static asset service, including its custom 404 handling.
+`GET /api/spotify` returns the owner's currently playing track as `{ "isPlaying": true, "title": "…", "artist": "…", "url": "https://open.spotify.com/track/…" }`. Paused, empty, unsupported, or unconfigured playback returns `{ "isPlaying": false }`. Upstream failures return the same inactive body with status 503; no upstream errors or credentials are returned. The Worker also handles the Spotify setup routes described below. Other API paths return JSON 404 responses. Page requests continue through the static asset service, including its custom 404 handling.
 
 Test the endpoint with `npx wrangler dev`, then open `/api/spotify` on the local address it prints. `npm run dev` starts Next.js only and does not run the Worker API. A non-publishing bundle check is available with `npx wrangler deploy --dry-run` after building.
 
-After deploying the script to the intended Worker, configure Spotify credentials in that Worker's Settings → Variables and Secrets. Build variables are separate. The public `SPOTIFY_CLIENT_ID` is recorded in Wrangler configuration so later deployments preserve it. Keep the client secret, refresh token, and setup token encrypted as runtime secrets, outside source and Wrangler configuration. For local development, `.dev.vars*` is ignored by Git; no credentials are needed for the readiness endpoint.
+After deploying the script to the intended Worker, configure Spotify credentials in that Worker's Settings → Variables and Secrets. Build variables are separate. The public `SPOTIFY_CLIENT_ID` is recorded in Wrangler configuration so later deployments preserve it. Keep the client secret, refresh token, and setup token encrypted as runtime secrets, outside source and Wrangler configuration. For local development, `.dev.vars*` is ignored by Git; missing credentials leave the playback indicator hidden.
 
 ### Connect Spotify
 
@@ -67,7 +67,11 @@ This is an owner-only setup flow, separate from the public website. It uses Spot
 
 The setup form uses a same-origin POST and `Referrer-Policy: same-origin` so browsers retain the origin header when submitting it. Its content security policy permits the form submission and redirect to Spotify Accounts. Callback and other setup responses use `no-referrer`. A signed, ten-minute state cookie binds the callback to the browser that started setup; the cookie is Secure, HttpOnly, and cleared on callback responses. Setup responses cannot be cached or framed and do not load external resources. Token exchange errors show a generic message. Only the refresh token is displayed, not the access token or client secret. The Worker does not store tokens automatically or log token responses.
 
-Once `SPOTIFY_REFRESH_TOKEN` exists, both setup routes return 404. To reconnect later, temporarily remove that secret and configure a fresh setup key, then repeat authorization. The `/api/spotify` readiness response and website UI do not use the saved refresh token yet; playback fetching is a separate step.
+Once `SPOTIFY_REFRESH_TOKEN` exists, both setup routes return 404. To reconnect later, temporarily remove that secret and configure a fresh setup key, then repeat authorization. The Worker uses the saved refresh token to obtain access tokens and call Spotify's [currently playing endpoint](https://developer.spotify.com/documentation/web-api/reference/get-the-users-currently-playing-track). Access tokens stay in memory until shortly before expiry. Playback results are cached for 15 seconds per Worker instance, and concurrent requests share an in-flight fetch. Rate limits respect Spotify's `Retry-After`; this cache is not shared between Worker instances. Browser and CDN responses use `no-store`.
+
+`<SpotifyStatus />` in `content/shell/header.mdx` polls the endpoint every 30 seconds while the tab is visible and refreshes when the tab becomes visible again. It displays a linked song and artist with the official white Spotify icon, and hides on paused playback, missing data, or failures. Removing that MDX declaration removes the indicator and its polling after rebuilding. The site still exports static HTML; Spotify requests happen in the browser and Worker, never during the site build.
+
+Spotify refresh tokens have a [six-month lifetime](https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens). An expired or revoked refresh token leaves the indicator hidden; an `invalid_grant` response stops further refresh attempts in that Worker instance until credentials change. Repeat setup to replace the token.
 
 ## Check published URLs
 

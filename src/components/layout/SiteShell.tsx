@@ -26,9 +26,7 @@ export default function SiteShell({ children }: { children: ReactNode }) {
     if (slot === "header") {
       return (
         <header className="site-header">
-          <nav className="site-nav" aria-label="Primary navigation">
-            <ContentDocument source={page.path} components={{ Page: NavigationPage, Collection: NavigationCollection }} />
-          </nav>
+          <ContentDocument source={page.path} components={{ Page: NavigationPage, Collection: NavigationCollection }} />
         </header>
       )
     }

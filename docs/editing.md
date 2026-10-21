@@ -73,6 +73,10 @@ The header now links to `/notes`; discovery publishes the index and its publishe
 Navigation lives in `content/shell/header.mdx`:
 
 ```mdx
+<SpotifyStatus />
+
+<Navigation>
+
 <Page path="../pages/home" title="home" />
 
 <Collection path="../notes" title="notes" />
@@ -80,7 +84,11 @@ Navigation lives in `content/shell/header.mdx`:
 <Collection path="../posts" title="blog" />
 
 <Collection path="../projects" title="projects" />
+
+</Navigation>
 ```
+
+`Navigation` groups the primary links. `SpotifyStatus` shows the current track above them; move or remove that declaration to change its placement or hide it. Its runtime credentials are covered in [deployment](deployment.md#connect-spotify).
 
 Reorder declarations to reorder links. `title` overrides the destination's label; omission uses its frontmatter title. Footer content lives in `content/shell/footer.mdx` and supports normal Markdown links.
 

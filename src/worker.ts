@@ -1,4 +1,7 @@
 import { spotifyAuth, type SpotifyAuthEnv } from "./spotify-auth.ts"
+import { createSpotifyPlayback } from "./spotify-playback.ts"
+
+const spotifyPlayback = createSpotifyPlayback()
 
 type Env = SpotifyAuthEnv & {
   ASSETS: { fetch(request: Request): Promise<Response> }
@@ -20,10 +23,7 @@ export default {
         })
       }
 
-      // Readiness only; Spotify authorization and playback fetching come later.
-      return Response.json({ status: "ready" }, {
-        headers: { "Cache-Control": "no-store" },
-      })
+      return spotifyPlayback(env)
     }
 
     if (pathname.startsWith("/api/")) {

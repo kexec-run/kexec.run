@@ -6,15 +6,15 @@ const noAssets = {
   ASSETS: { fetch() { throw new Error("API requests must not fall through to assets") } },
 }
 
-test("Spotify readiness endpoint returns uncached JSON without credentials", async () => {
+test("Spotify playback endpoint is inactive without credentials and does not read assets", async () => {
   const response = await worker.fetch(new Request("https://example.test/api/spotify?check=1"), noAssets)
   assert.equal(response.status, 200)
   assert.match(response.headers.get("Content-Type"), /application\/json/)
   assert.equal(response.headers.get("Cache-Control"), "no-store")
-  assert.deepEqual(await response.json(), { status: "ready" })
+  assert.deepEqual(await response.json(), { isPlaying: false })
 })
 
-test("readiness endpoint rejects unsupported methods", async () => {
+test("playback endpoint rejects unsupported methods", async () => {
   const response = await worker.fetch(new Request("https://example.test/api/spotify", { method: "POST" }), noAssets)
   assert.equal(response.status, 405)
   assert.equal(response.headers.get("Allow"), "GET")

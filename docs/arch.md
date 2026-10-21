@@ -16,7 +16,7 @@ The build starts at `content/shell/index.mdx`, follows its MDX declarations, and
 
 Code loads one authored entry point. It supplies reusable components and rules; MDX selects the site's content. There is no collection-name registry or route implementation for each collection.
 
-Code defines the `Page`, `Collection`, and `Project` components, the supported shell slots, and reserved routes. Some presentation conventions also remain in code: project rows omit dates, and tag detail pages list posts only.
+Code defines reusable MDX components such as `Page`, `Collection`, `Project`, `Navigation`, and `SpotifyStatus`, the supported shell slots, and reserved routes. Some presentation conventions also remain in code: project rows omit dates, and tag detail pages list posts only.
 
 ## Content library boundaries
 
@@ -108,3 +108,9 @@ Missing collection folders are skipped. A referenced folder that exists must hav
 Run `npm test`, `npm run typecheck`, and `npm run build` to check the implementation and static export. Tests exercise the public API with temporary content folders, covering publication connections, drafts, nested sections, relative paths, parsing, validation, sorting, and tag discovery. Separate imported roots stay independent when the working directory changes.
 
 Discovery currently rereads reachable documents during the build. If this becomes slow, a build-scoped cache or generated manifest can reduce repeated work. Dynamic MDX imports are checked by the production build.
+
+## Spotify runtime boundary
+
+`src/worker.ts` routes API requests and delegates page requests to static assets. `src/spotify-auth.ts` handles owner setup and the authorization callback. `src/spotify-playback.ts` handles token refresh, playback requests, response normalization, and its own short in-memory cache. None participates in content discovery or publication.
+
+The `SpotifyStatus` client component polls the public playback endpoint and renders a small track link. MDX controls whether it appears and where it sits relative to `Navigation`; credentials remain in the Worker.
