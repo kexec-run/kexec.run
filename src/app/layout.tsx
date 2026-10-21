@@ -8,7 +8,13 @@ import { atkinson, atkinsonMono } from "@/lib/fonts"
 
 export function generateMetadata(): Metadata {
   const home = discoverSite().routes.find((route) => route.href === "/")!
-  return { title: home.metadata.title, description: home.metadata.description }
+  return {
+    title: {
+      default: home.metadata.title,
+      template: `%s | ${home.metadata.title}`,
+    },
+    description: home.metadata.description,
+  }
 }
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
