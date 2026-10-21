@@ -15,7 +15,7 @@ export default function SpotifyStatus() {
       controller = new AbortController()
       const timeout = window.setTimeout(() => controller?.abort(), 12000)
       try {
-        const response = await fetch("/api/spotify", { signal: controller.signal, cache: "no-store" })
+        const response = await fetch("/api/spotify", { signal: controller.signal, cache: "default" })
         const data = response.ok ? await response.json() : null
         const valid = data?.isPlaying === true && typeof data.title === "string" && typeof data.artist === "string" && typeof data.url === "string" && /^https:\/\/open\.spotify\.com\/track\/[a-zA-Z0-9]{22}$/.test(data.url)
         if (!disposed) {

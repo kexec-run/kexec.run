@@ -111,6 +111,6 @@ Discovery currently rereads reachable documents during the build. If this become
 
 ## Spotify runtime boundary
 
-`src/worker.ts` routes API requests and delegates page requests to static assets. `src/spotify-auth.ts` handles owner setup and the authorization callback. `src/spotify-playback.ts` handles token refresh, playback requests, response normalization, and its own short in-memory cache. None participates in content discovery or publication.
+`src/worker.ts` routes API requests and delegates page requests to static assets. `src/spotify-auth.ts` handles owner setup and the authorization callback. `src/spotify-playback.ts` handles token refresh, playback requests, response normalization, and in-memory token reuse and retry guards. `src/spotify-cache.ts` owns the credential-scoped edge cache key, the 15-second playback TTL, and the 5-second browser cache headers. Successful public playback data is shared at the edge; tokens and failures are not. None participates in content discovery or publication.
 
 The `SpotifyStatus` client component polls the public playback endpoint and renders a small track link. MDX controls whether it appears and where it sits relative to `Navigation`; credentials remain in the Worker.

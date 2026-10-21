@@ -17,6 +17,7 @@ test("Spotify playback endpoint is inactive without credentials and does not rea
 test("playback endpoint rejects unsupported methods", async () => {
   const response = await worker.fetch(new Request("https://example.test/api/spotify", { method: "POST" }), noAssets)
   assert.equal(response.status, 405)
+  assert.equal(response.headers.get("Cache-Control"), "no-store")
   assert.equal(response.headers.get("Allow"), "GET")
   assert.deepEqual(await response.json(), { error: "Method not allowed" })
 })
@@ -24,6 +25,7 @@ test("playback endpoint rejects unsupported methods", async () => {
 test("unknown API paths return JSON 404 instead of a static HTML page", async () => {
   const response = await worker.fetch(new Request("https://example.test/api/missing"), noAssets)
   assert.equal(response.status, 404)
+  assert.equal(response.headers.get("Cache-Control"), "no-store")
   assert.deepEqual(await response.json(), { error: "Not found" })
 })
 

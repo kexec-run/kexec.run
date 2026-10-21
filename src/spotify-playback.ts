@@ -1,4 +1,5 @@
 import type { SpotifyAuthEnv } from "./spotify-auth.ts"
+import { browserPlaybackResponse, playbackCacheKey, readPlaybackCache, writePlaybackCache, type SpotifyEdgeCache } from "./spotify-cache.ts"
 
 export type SpotifyPlayback =
   | { isPlaying: false }
@@ -10,9 +11,10 @@ type PlaybackCache = {
   credentials: string
   accessToken?: string
   expiresAt: number
-  result?: Result
-  until: number
-  pending?: Promise<Result>
+  cacheKey?: Request
+  blocked?: Result
+  retryAt: number
+  pending?: Promise<Response>
 }
 
 function readPlayback(value: unknown): SpotifyPlayback {
@@ -30,7 +32,7 @@ function readPlayback(value: unknown): SpotifyPlayback {
   return { isPlaying: true, title: item.name, artist: names.join(", "), url: `https://open.spotify.com/track/${item.id}` }
 }
 
-// One cache per Worker instance. No tokens or raw upstream responses leave this module.
+// Access tokens and request coalescing stay per Worker instance; playback uses the edge cache.
 export function createSpotifyPlayback() {
   let cache: PlaybackCache | undefined
 
@@ -86,22 +88,39 @@ export function createSpotifyPlayback() {
     return { playback: inactive, status: 503, retryAfter: Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 30 }
   }
 
-  return async function spotifyPlayback(env: SpotifyAuthEnv): Promise<Response> {
+  return async function spotifyPlayback(env: SpotifyAuthEnv, edgeCache?: SpotifyEdgeCache): Promise<Response> {
     if (!env.SPOTIFY_CLIENT_ID || !env.SPOTIFY_CLIENT_SECRET || !env.SPOTIFY_REFRESH_TOKEN) {
       return Response.json(inactive, { headers: { "Cache-Control": "no-store" } })
     }
-    // Keep independent credentials from sharing cached playback, including in local tests.
-    const key = JSON.stringify([env.SPOTIFY_CLIENT_ID, env.SPOTIFY_CLIENT_SECRET, env.SPOTIFY_REFRESH_TOKEN])
-    if (cache?.credentials !== key) cache = { credentials: key, expiresAt: 0, until: 0 }
+    const credentials = JSON.stringify([env.SPOTIFY_CLIENT_ID, env.SPOTIFY_CLIENT_SECRET, env.SPOTIFY_REFRESH_TOKEN])
+    if (cache?.credentials !== credentials) cache = { credentials, expiresAt: 0, retryAt: 0 }
     const session = cache
-    if (!session.result || Date.now() >= session.until) {
-      session.pending ??= load(env, session)
-      const result = await session.pending
-      session.result = result
-      session.until = result.reauthorize ? Infinity : Date.now() + (result.retryAfter ?? 15) * 1000
-      session.pending = undefined
+    session.cacheKey ??= await playbackCacheKey(credentials)
+    if (session.blocked && Date.now() < session.retryAt) return playbackResponse(session.blocked)
+    const cached = await readPlaybackCache(edgeCache, session.cacheKey)
+    if (cached) return cached
+
+    session.pending ??= (async () => {
+      const result = await load(env, session)
+      // These are retry guards, never publicly cached error responses.
+      if (result.reauthorize || result.retryAfter) {
+        session.blocked = result
+        session.retryAt = result.reauthorize ? Infinity : Date.now() + result.retryAfter! * 1000
+      }
+      const response = playbackResponse(result)
+      if (result.status === 200) {
+        response.headers.set("Date", new Date(Date.now()).toUTCString())
+        await writePlaybackCache(edgeCache, session.cacheKey!, response)
+        return browserPlaybackResponse(response)
+      }
+      return response
+    })()
+    const pending = session.pending
+    try {
+      return (await pending).clone()
+    } finally {
+      if (session.pending === pending) session.pending = undefined
     }
-    return playbackResponse(session.result)
   }
 }
 

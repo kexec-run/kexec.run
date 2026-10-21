@@ -26,6 +26,23 @@ function mockSpotify(t, playback = () => Response.json(track)) {
   })
 }
 
+function edgeCache() {
+  const entries = new Map()
+  return {
+    entries,
+    reads: 0,
+    writes: 0,
+    async match(key) {
+      this.reads++
+      return entries.get(key.url)?.clone()
+    },
+    async put(key, response) {
+      this.writes++
+      entries.set(key.url, response.clone())
+    },
+  }
+}
+
 test("missing credentials are inactive without contacting Spotify", async t => {
   const mock = t.mock.method(globalThis, "fetch", () => { throw Error("unexpected network") })
   const handler = createSpotifyPlayback()
@@ -42,7 +59,7 @@ test("playing track exposes only normalized metadata and a trusted Spotify URL",
   mockSpotify(t)
   const result = await createSpotifyPlayback()(env)
   assert.equal(result.status, 200)
-  assert.equal(result.headers.get("Cache-Control"), "no-store")
+  assert.equal(result.headers.get("Cache-Control"), "private, max-age=5, must-revalidate")
   assert.deepEqual(await result.json(), expected)
 })
 
@@ -67,19 +84,20 @@ test("paused, empty, episodes, ads, local tracks and malformed metadata are hidd
   assert.deepEqual(await (await createSpotifyPlayback()(env)).json(), { isPlaying: false })
 })
 
-test("playback requests share a short cache and reuse access tokens until expiry", async t => {
+test("playback requests share the edge cache and reuse access tokens until expiry", async t => {
   let now = Date.now()
   t.mock.method(Date, "now", () => now)
   const mock = mockSpotify(t)
   const handler = createSpotifyPlayback()
-  const responses = await Promise.all([handler(env), handler(env), handler(env)])
+  const edge = edgeCache()
+  const responses = await Promise.all([handler(env, edge), handler(env, edge), handler(env, edge)])
   for (const response of responses) assert.deepEqual(await response.json(), expected)
   assert.equal(mock.mock.callCount(), 2)
   now += 16000
-  await handler(env)
+  await handler(env, edge)
   assert.equal(mock.mock.callCount(), 3)
   now += 3600000
-  await handler(env)
+  await handler(env, edge)
   assert.equal(mock.mock.callCount(), 5)
 })
 
@@ -164,4 +182,91 @@ test("expired or revoked refresh tokens stop retrying until credentials change",
   assert.equal(mock.mock.callCount(), 1)
   await handler({ ...env, SPOTIFY_REFRESH_TOKEN: "replacement" })
   assert.equal(mock.mock.callCount(), 2)
+})
+
+
+test("fresh edge playback is shared across Worker instances without resetting its age", async t => {
+  let now = Date.now()
+  t.mock.method(Date, "now", () => now)
+  const mock = mockSpotify(t)
+  const edge = edgeCache()
+  const first = await createSpotifyPlayback()(env, edge)
+  const date = first.headers.get("Date")
+  assert.deepEqual(await first.json(), expected)
+  assert.equal(edge.writes, 1)
+  const [key, stored] = [...edge.entries][0]
+  for (const secret of Object.values(env)) assert.ok(!key.includes(secret))
+  assert.equal(stored.headers.get("Cache-Control"), "public, max-age=15, must-revalidate")
+  assert.ok(!(await stored.clone().text()).includes("fake-access"))
+  now += 4000
+  const hit = await createSpotifyPlayback()(env, edge)
+  assert.deepEqual(await hit.json(), expected)
+  assert.equal(hit.headers.get("Age"), "4")
+  assert.equal(hit.headers.get("Date"), date)
+  assert.equal(hit.headers.get("Cache-Control"), "private, max-age=5, must-revalidate")
+  assert.equal(hit.headers.get("X-Spotify-Cached-At"), null)
+  assert.equal(mock.mock.callCount(), 2)
+  assert.equal(edge.writes, 1)
+})
+
+test("expired edge entries are not used as a stale fallback when Spotify fails", async t => {
+  let now = Date.now()
+  t.mock.method(Date, "now", () => now)
+  let available = true
+  mockSpotify(t, () => available ? Response.json(track) : new Response("private failure", { status: 500 }))
+  const edge = edgeCache()
+  const handler = createSpotifyPlayback()
+  await handler(env, edge)
+  now += 15000
+  available = false
+  for (let i = 0; i < 2; i++) {
+    const response = await handler(env, edge)
+    assert.equal(response.status, 503)
+    assert.equal(response.headers.get("Cache-Control"), "no-store")
+    assert.deepEqual(await response.json(), { isPlaying: false })
+  }
+  assert.equal(edge.writes, 1)
+})
+
+test("paused playback is cacheable but configuration and rate-limit errors are not", async t => {
+  const edge = edgeCache()
+  const mock = mockSpotify(t, () => new Response(null, { status: 204 }))
+  assert.deepEqual(await (await createSpotifyPlayback()(env, edge)).json(), { isPlaying: false })
+  assert.deepEqual(await (await createSpotifyPlayback()(env, edge)).json(), { isPlaying: false })
+  assert.equal(edge.writes, 1)
+  assert.equal(mock.mock.callCount(), 2)
+  const missing = await createSpotifyPlayback()({}, edge)
+  assert.equal(missing.headers.get("Cache-Control"), "no-store")
+  assert.equal(edge.writes, 1)
+  mock.mock.restore()
+  mockSpotify(t, () => new Response(null, { status: 429, headers: { "Retry-After": "60" } }))
+  const otherEdge = edgeCache()
+  const error = await createSpotifyPlayback()(env, otherEdge)
+  assert.equal(error.status, 503)
+  assert.equal(error.headers.get("Cache-Control"), "no-store")
+  assert.equal(otherEdge.writes, 0)
+})
+
+test("changed or removed credentials cannot reuse a previous edge entry", async t => {
+  const edge = edgeCache()
+  t.mock.method(globalThis, "fetch", (url, options) => {
+    if (url.endsWith("/api/token")) return token()
+    return Response.json(track)
+  })
+  const handler = createSpotifyPlayback()
+  await handler(env, edge)
+  await handler({ ...env, SPOTIFY_REFRESH_TOKEN: "replacement" }, edge)
+  assert.equal(edge.entries.size, 2)
+  assert.equal(edge.writes, 2)
+  const reads = edge.reads
+  assert.deepEqual(await (await handler({}, edge)).json(), { isPlaying: false })
+  assert.equal(edge.reads, reads)
+})
+
+test("cache outages fall through to fresh playback, without retaining an extra playback TTL", async t => {
+  const mock = mockSpotify(t)
+  const broken = { async match() { throw Error("cache unavailable") }, async put() { throw Error("cache unavailable") } }
+  const handler = createSpotifyPlayback()
+  for (let i = 0; i < 2; i++) assert.deepEqual(await (await handler(env, broken)).json(), expected)
+  assert.equal(mock.mock.callCount(), 3)
 })

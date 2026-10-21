@@ -19,15 +19,16 @@ export default {
       if (request.method !== "GET") {
         return Response.json({ error: "Method not allowed" }, {
           status: 405,
-          headers: { Allow: "GET" },
+          headers: { Allow: "GET", "Cache-Control": "no-store" },
         })
       }
 
-      return spotifyPlayback(env)
+      const edgeCache = (globalThis.caches as (CacheStorage & { default?: Cache }) | undefined)?.default
+      return spotifyPlayback(env, edgeCache)
     }
 
     if (pathname.startsWith("/api/")) {
-      return Response.json({ error: "Not found" }, { status: 404 })
+      return Response.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } })
     }
 
     return env.ASSETS.fetch(request)
