@@ -14,7 +14,9 @@ Tests check content discovery, relative paths, publication flags, and tags. Type
 
 `public/` contains source assets. `out/` contains the generated site and is ignored by Git. Next.js reserves `public/` as an input directory, so it cannot be the export destination.
 
-`next-env.d.ts` stays in the repository. Next.js generates it for framework and route type declarations; its development and production import paths can differ. After moving route files, stale generated types under `.next/` may need regeneration with the relevant Next.js command.
+`next-env.d.ts` is generated locally and ignored by Git. Keep it in the `tsconfig.json` include list, but do not edit or commit it. Its contents can change with the Next.js version and between development and production.
+
+`npm run typecheck` runs `next typegen` before `tsc --noEmit`, so a clean checkout generates the framework and route declarations without starting a server or running a full build. `next dev` and `next build` also regenerate those declarations.
 
 ## Cloudflare configuration
 
